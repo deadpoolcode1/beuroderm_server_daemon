@@ -104,8 +104,9 @@ void *connection_handler(void *socket_desc)
     {
         //Send the message back to client
         //write(sock , client_message , strlen(client_message));
-	printf("%s\n",client_message);
-        client_message[0]='\0';
+	printf("test:%s\n",client_message);
+	system("mkdir /data/test/");
+	client_message[0]='\0';
 	sleep(1);
     }
      
