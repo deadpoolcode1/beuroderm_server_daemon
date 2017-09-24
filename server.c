@@ -165,7 +165,8 @@ void *connection_handler(void *socket_desc)
 		#ifdef ServerDebug
 		printf("value:%s\n",commandFile.value);
 		#endif
-		if (open_file(commandFile.name)<0) {}
+		fd = open_file(commandFile.name);
+		if (fd<0) {}
 		else
 		{
 			write( fd, commandFile.value, strlen(commandFile.value) );
