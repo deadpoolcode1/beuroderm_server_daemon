@@ -94,7 +94,7 @@ int main(int argc , char *argv[])
         puts("Connection accepted");
         //Reply to the client
         message = "Hello Client , I have received your connection. And now I will assign a handler for you\n";
-        write(new_socket , message , strlen(message));
+        //write(new_socket , message , strlen(message));
         pthread_t sniffer_thread;
         new_sock = malloc(1);
         *new_sock = new_socket;
@@ -125,7 +125,7 @@ void *connection_handler(void *socket_desc)
     //Get the socket descriptor
     int sock = *(int*)socket_desc;
     int read_size;
-    char *message , client_message[50];
+    char *message , client_message[2000];
     int fd;
     struct file_action
     {
@@ -139,7 +139,7 @@ void *connection_handler(void *socket_desc)
     //write(sock , message , strlen(message));
      
     message = "Now type something and i shall repeat what you type \n";
-   // write(sock , message , strlen(message));
+    // write(sock , message , strlen(message));
      
     //Receive a message from client
     while( (read_size = recv(sock , client_message , 2000 , 0)) > 0 )
@@ -160,7 +160,7 @@ void *connection_handler(void *socket_desc)
 		commandFile.name[findSubstr(commandFile.name, "=")-1]='\0';
 		#ifdef ServerDebug
 		printf("file to write:%s\n",commandFile.name);
-        	#endif
+        #endif
 		strcpy( commandFile.value, client_message+findSubstr(client_message, "=") );
 		#ifdef ServerDebug
 		printf("value:%s\n",commandFile.value);
@@ -171,6 +171,9 @@ void *connection_handler(void *socket_desc)
 		{
 			write( fd, commandFile.value, strlen(commandFile.value) );
 			close(fd);
+		 	message = commandFile.value;
+		    write(sock , message , strlen(message));
+		
 		}
 	}
 	client_message[0]='\0';
