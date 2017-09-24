@@ -6,7 +6,33 @@
 #include<unistd.h>    //write
 #include<signal.h>
 #include<pthread.h> //for threading , link with lpthread
- 
+#include <fcntl.h>
+#include "general.h"
+#define ServerDebug 1
+int findSubstr(char *inpText, char *pattern) {
+    int inplen = strlen(inpText);
+    while (inpText != NULL) {
+
+        char *remTxt = inpText;
+        char *remPat = pattern;
+
+        if (strlen(remTxt) < strlen(remPat)) {
+            /* printf ("length issue remTxt %s \nremPath %s \n", remTxt, remPat); */
+            return -1;
+        }
+        while (*remTxt++ == *remPat++) {
+            if (*remPat == '\0') {
+                return inplen - strlen(inpText+1);
+            }
+            if (remTxt == NULL) {
+                return -1;
+            }
+        }
+        remPat = pattern;
+
+        inpText++;
+    }
+}
 void *connection_handler(void *);
 
 int socket_desc_main;
@@ -20,7 +46,16 @@ void sig_handler(int signo)
     exit(1);
 }
 
-
+int open_file(char *filename)
+{
+	int fd;
+	fd = open(filename, O_RDWR);
+	if (fd < 0) 
+	{
+         	printf("can not open file\n");
+        }
+	return fd;
+}
  
 int main(int argc , char *argv[])
 {
@@ -67,7 +102,7 @@ int main(int argc , char *argv[])
         {
             perror("could not create thread");
             return 1;
-        }\
+        }
         //Now join the thread , so that we dont terminate before the thread
         //pthread_join( sniffer_thread , NULL);
         puts("Handler assigned");
@@ -91,7 +126,14 @@ void *connection_handler(void *socket_desc)
     int sock = *(int*)socket_desc;
     int read_size;
     char *message , client_message[50];
-     
+    int fd;
+    struct file_action
+    {
+         char name [100];
+         char value [100];
+    };
+    char * my_copy;
+
     //Send some messages to the client
     message = "Greetings! I am your connection handler\n";
     //write(sock , message , strlen(message));
@@ -104,8 +146,32 @@ void *connection_handler(void *socket_desc)
     {
         //Send the message back to client
         //write(sock , client_message , strlen(client_message));
-	printf("test:%s\n",client_message);
-	system("mkdir /data/test/");
+	#ifdef ServerDebug
+	printf("message:%s\n",client_message);
+	#endif
+	//now make action according to messaage
+	if(findSubstr(client_message, "write_file")>-1)
+	{
+		/*action is writing to a file
+		example: write_file:/sys/class/gpio/export=5
+		*/
+		struct file_action commandFile;
+		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
+		commandFile.name[findSubstr(commandFile.name, "=")-1]='\0';
+		#ifdef ServerDebug
+		printf("file to write:%s\n",commandFile.name);
+        	#endif
+		strcpy( commandFile.value, client_message+findSubstr(client_message, "=") );
+		#ifdef ServerDebug
+		printf("value:%s\n",commandFile.value);
+		#endif
+		if (open_file(commandFile.name)<0) {}
+		else
+		{
+			write( fd, commandFile.value, strlen(commandFile.value) );
+			close(fd);
+		}
+	}
 	client_message[0]='\0';
 	sleep(1);
     }

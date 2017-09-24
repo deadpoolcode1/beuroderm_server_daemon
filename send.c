@@ -16,7 +16,7 @@ int main(int argc , char *argv[])
         printf("Could not create socket");
     }
          
-    server.sin_addr.s_addr = inet_addr("10.0.0.36");
+    server.sin_addr.s_addr = inet_addr("10.0.0.15");
     server.sin_family = AF_INET;
     server.sin_port = htons( 5797 );
  
@@ -29,7 +29,8 @@ int main(int argc , char *argv[])
      
     puts("Connected now\n");
     //Send some data
-    message = "x\n";
+    //message = "write_file:/sys/class/gpio/export=5\n";
+    message = "write_file:test.txt=5\n";
     if( send(socket_desc , message , strlen(message) , 0) < 0)
     {
         puts("Send failed");
