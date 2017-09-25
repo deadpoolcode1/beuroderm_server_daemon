@@ -7,7 +7,6 @@ int main(int argc , char *argv[])
 {
     int socket_desc;
     struct sockaddr_in server;
-    char *message;
     //example: ./send write_file:/sys/class/gpio/export=5
     //example: ./send read_file:/sys/class/gpio/gpio5/value
     if (argc<2) 
@@ -15,6 +14,7 @@ int main(int argc , char *argv[])
 	printf("error, usage: ./send [commnad]\n");
     	return 1;
     } 
+    char *message , server_reply[2000];
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
     if (socket_desc == -1)
@@ -36,8 +36,6 @@ int main(int argc , char *argv[])
     puts("Connected now\n");
     //Send some data
     message=argv[1];
-    //message = "write_file:/sys/class/gpio/unexport=5\n";
-    //message = "write_file:test.txt=5\n";
     if( send(socket_desc , message , strlen(message) , 0) < 0)
     {
         puts("Send failed");
@@ -45,7 +43,16 @@ int main(int argc , char *argv[])
     }
     puts("Data Send\n");
 
-    
+    //Receive a reply from the server
+    if( recv(socket_desc, server_reply , 2000 , 0) < 0)
+    {
+        puts("recv failed");
+        close(socket_desc);
+        return 1;
+
+    }
+    puts("Reply received:\n");
+    puts(server_reply);
     close(socket_desc);
     return 0;
 }
