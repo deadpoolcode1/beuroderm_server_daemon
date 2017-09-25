@@ -9,6 +9,9 @@
 #include <fcntl.h>
 #include "general.h"
 #define ServerDebug 1
+#ifdef ServerDebug
+//#undef ServerDebug
+#endif
 int findSubstr(char *inpText, char *pattern) {
     int inplen = strlen(inpText);
     while (inpText != NULL) {
@@ -170,11 +173,32 @@ void *connection_handler(void *socket_desc)
 		else
 		{
 			write( fd, commandFile.value, strlen(commandFile.value) );
-			close(fd);
-		 	message = commandFile.value;
-		    write(sock , message , strlen(message));
-		
+			close(fd);	
 		}
+	}
+	else if(findSubstr(client_message, "read_file")>-1)
+	{
+		/*action is reading a file
+		example: read_file:/sys/class/gpio/gpio5/value
+		*/
+		struct file_action commandFile;
+		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
+		#ifdef ServerDebug
+		printf("file to read:%s\n",commandFile.name);
+        #endif
+        fd = open_file(commandFile.name);
+		if (fd<0) {}
+		else
+		{
+			
+			read(fd, commandFile.value, sizeof(commandFile.value));
+			#ifdef ServerDebug
+			printf("value read:%s\n",commandFile.value);
+        	#endif
+			close(fd);
+		    write(sock , commandFile.value , strlen(commandFile.value));
+		}
+		
 	}
 	client_message[0]='\0';
 	sleep(1);
