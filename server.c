@@ -12,6 +12,9 @@
 #ifdef ServerDebug
 //#undef ServerDebug
 #endif
+/*
+function return index of occurance pattern in string
+*/
 int findSubstr(char *inpText, char *pattern) {
     int inplen = strlen(inpText);
     while (inpText != NULL) {
@@ -40,6 +43,11 @@ void *connection_handler(void *);
 
 int socket_desc_main;
 
+
+/*
+function to handle ctrl+c response 
+ensure closing the socket before exiting software 
+*/
 void sig_handler(int signo)
 {
   int j=0;
@@ -48,7 +56,9 @@ void sig_handler(int signo)
     close(socket_desc_main);    
     exit(1);
 }
-
+/*
+function to handle opening a file 
+*/
 int open_file(char *filename)
 {
 	int fd;
@@ -96,8 +106,6 @@ int main(int argc , char *argv[])
     {
         puts("Connection accepted");
         //Reply to the client
-        message = "Hello Client , I have received your connection. And now I will assign a handler for you\n";
-        //write(new_socket , message , strlen(message));
         pthread_t sniffer_thread;
         new_sock = malloc(1);
         *new_sock = new_socket;
@@ -136,14 +144,6 @@ void *connection_handler(void *socket_desc)
          char value [100];
     };
     char * my_copy;
-
-    //Send some messages to the client
-    message = "Greetings! I am your connection handler\n";
-    //write(sock , message , strlen(message));
-     
-    message = "Now type something and i shall repeat what you type \n";
-    // write(sock , message , strlen(message));
-     
     //Receive a message from client
     while( (read_size = recv(sock , client_message , 2000 , 0)) > 0 )
     {
@@ -163,7 +163,7 @@ void *connection_handler(void *socket_desc)
 		commandFile.name[findSubstr(commandFile.name, "=")-1]='\0';
 		#ifdef ServerDebug
 		printf("file to write:%s\n",commandFile.name);
-        #endif
+        	#endif
 		strcpy( commandFile.value, client_message+findSubstr(client_message, "=") );
 		#ifdef ServerDebug
 		printf("value:%s\n",commandFile.value);
@@ -185,8 +185,8 @@ void *connection_handler(void *socket_desc)
 		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
 		#ifdef ServerDebug
 		printf("file to read:%s\n",commandFile.name);
-        #endif
-        fd = open_file(commandFile.name);
+        	#endif
+        	fd = open_file(commandFile.name);
 		if (fd<0) {}
 		else
 		{
@@ -194,9 +194,9 @@ void *connection_handler(void *socket_desc)
 			read(fd, commandFile.value, sizeof(commandFile.value));
 			#ifdef ServerDebug
 			printf("value read:%s\n",commandFile.value);
-        	#endif
+        		#endif
 			close(fd);
-		    write(sock , commandFile.value , strlen(commandFile.value));
+		    	write(sock , commandFile.value , strlen(commandFile.value));
 		}
 		
 	}
