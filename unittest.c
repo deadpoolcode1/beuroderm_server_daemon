@@ -11,12 +11,9 @@ int main(int argc , char *argv[])
     tv.tv_sec = 1;  /* 1 Secs Timeout */
     tv.tv_usec = 0;  // Not init'ing this can cause strange errors
 	
-
-    //example: ./send 10.0.0.36 write_file:/sys/class/gpio/export=5
-    //example: ./send 10.0.0.36 read_file:/sys/class/gpio/gpio5/value
-    if (argc<3) 
+    if (argc<2) 
     {
-	printf("error, usage: ./send [address][commnad]\n");
+	printf("error, usage: ./unittest [address]\n");
     	return 1;
     } 
     char *message , server_reply[2000];

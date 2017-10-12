@@ -1,0 +1,9 @@
+{
+ "unittest": [
+   { "message":"write_file:/sys/class/gpio/export=106", "timeout":1, "response":"" },
+   { "message":"write_file:/sys/class/gpio/gpio106/direction=low", "timeout":1, "response":"" },
+   { "message":"read_file:/sys/class/gpio/gpio106/direction", "timeout":1, "response":"out" },
+   { "message":"write_file:/sys/class/backlight/backlight/brightness=4", "timeout":1, "response":"" },
+   { "message":"read_file:/sys/class/backlight/backlight/brightness", "timeout":1, "response":"4" }
+  ]
+ }
