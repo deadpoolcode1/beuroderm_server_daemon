@@ -1,10 +1,11 @@
 #include<stdio.h>
 #include<string.h>    //strlen
 #include<sys/socket.h>
+#include <sys/time.h>
 #include<arpa/inet.h> //inet_addr
 #include "jsmn.h"
 static const char *JSON_STRING =
-	"{\"unittest\": [{\"message\":\"write_file:/sys/class/backlight/backlight/brightness=4\",\"timeout\":\"2\"}]}";
+	"{\"unittest\": [{\"message\":\"write_file:/sys/class/backlight/backlight/brightness=7\",\"timeout\":\"2\"}]}";
 
 
 
