@@ -7,6 +7,7 @@
 #include<signal.h>
 #include<pthread.h> //for threading , link with lpthread
 #include <fcntl.h>
+#include "i2c.h"
 #define ServerDebug 1
 #ifdef ServerDebug
 //#undef ServerDebug
@@ -37,6 +38,7 @@ int findSubstr(char *inpText, char *pattern) {
 
         inpText++;
     }
+    return 0;
 }
 void *connection_handler(void *);
 
@@ -49,7 +51,6 @@ ensure closing the socket before exiting software
 */
 void sig_handler(int signo)
 {
-  int j=0;
   if (signo == SIGINT)
     printf("received SIGINT\n");
     close(socket_desc_main);    
@@ -77,7 +78,6 @@ int main(int argc , char *argv[])
 {
     int socket_desc , new_socket , c , *new_sock;
     struct sockaddr_in server , client;
-    char *message;
      
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -139,7 +139,7 @@ void *connection_handler(void *socket_desc)
     //Get the socket descriptor
     int sock = *(int*)socket_desc;
     int read_size;
-    char *message , client_message[2000];
+    char client_message[2000];
     int fd;
     int result;
 
@@ -148,7 +148,7 @@ void *connection_handler(void *socket_desc)
          char name [100];
          char value [100];
     };
-    char * my_copy;
+    client_message[0]='\0';
     //Receive a message from client
     while( (read_size = recv(sock , client_message , 2000 , 0)) > 0 )
     {
@@ -208,7 +208,7 @@ void *connection_handler(void *socket_desc)
         else if(findSubstr(client_message, "i2c_read")>-1)
         {
         /*action is reading a I2C register
-        example: i2c_read:/dev/i2c-1 0x1b 0x5d
+        example: i2c_read: /dev/i2c-1 0x1b 0x5d
         */
         struct file_action commandFile;
 		result=read_i2c(client_message);
