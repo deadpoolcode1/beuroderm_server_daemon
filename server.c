@@ -206,7 +206,7 @@ void *connection_handler(void *socket_desc)
     if(read_size == 0)
     {
         puts("Client disconnected");
-        fflush(stdout);
+        fflush(sock);
     }
     else if(read_size == -1)
     {
