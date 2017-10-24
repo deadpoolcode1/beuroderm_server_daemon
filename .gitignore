@@ -2,9 +2,18 @@
 *.o
 *~
 *.sw*
+
+# macOS
+
 *.dSYM
+.DS_Store
 
 # Eclipse
 .classpath
 .project
 .settings/
+
+# Intellij
+.idea/
+cmake-build-debug/
+

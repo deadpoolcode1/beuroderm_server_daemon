@@ -7,6 +7,8 @@
 #include<signal.h>
 #include<pthread.h> //for threading , link with lpthread
 #include <fcntl.h>
+#include <err.h>
+#include <errno.h>
 #include "i2c.h"
 #define ServerDebug 1
 #ifdef ServerDebug
@@ -40,6 +42,7 @@ int findSubstr(char *inpText, char *pattern) {
     }
     return 0;
 }
+//handles a new connection
 void *connection_handler(void *);
 
 int socket_desc_main;
@@ -69,10 +72,31 @@ int open_file(char *filename)
         }
 	return fd;
 }
-
-int read_i2c(char *string_command)
+/*
+handles read i2c server command
+exaqmple: /dev/i2c-1;0x1b;0x5d
+*/
+uint8_t read_i2c(char *string_command)
 {
-	return 14;
+	char *path;
+	int addr=0, reg=0, data;
+	int file, rc;
+	path[0]='\0';
+	//(scanf("%80[^;],%d[^;],%d",path ,addr , reg, &string_command) == 4)
+	file = open(path, O_RDWR);
+	if (file < 0)
+		err(errno, "Tried to open '%s'", path); 
+
+	rc = ioctl(file, I2C_SLAVE_FORCE, addr);
+	if (rc < 0)
+		err(errno, "Tried to set device address '0x%02x'", addr);
+
+	data = i2c_smbus_read_byte_data(file, reg);
+	#ifdef ServerDebug
+	printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",
+			path, addr, reg, data);
+	#endif
+	return data;
 } 
 int main(int argc , char *argv[])
 {
@@ -190,8 +214,8 @@ void *connection_handler(void *socket_desc)
 		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
 		#ifdef ServerDebug
 		printf("file to read:%s\n",commandFile.name);
-        	#endif
-        	fd = open_file(commandFile.name);
+        #endif
+        fd = open_file(commandFile.name);
 		if (fd<0) {}
 		else
 		{
@@ -207,16 +231,17 @@ void *connection_handler(void *socket_desc)
 	}
         else if(findSubstr(client_message, "i2c_read")>-1)
         {
-        /*action is reading a I2C register
-        example: i2c_read: /dev/i2c-1 0x1b 0x5d
-        */
-        struct file_action commandFile;
-		result=read_i2c(client_message);
-                #ifdef ServerDebug
-                printf("value read:%04x\n",result);
-                #endif
-		sprintf(commandFile.value, "%04x", result);
-                write(sock , commandFile.value , strlen(commandFile.value));
+        	/*action is reading a I2C register
+        	example: i2c_read:/dev/i2c-1;0x1b;0x5d
+        	*/
+        	struct file_action commandFile;
+			strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
+			result=read_i2c(commandFile.name);
+        	#ifdef ServerDebug
+        	printf("value read:%04x\n",result);
+        	#endif
+			sprintf(commandFile.value, "%04x", result);
+        	write(sock , commandFile.value , strlen(commandFile.value));
         }
 
 	client_message[0]='\0';
@@ -226,7 +251,7 @@ void *connection_handler(void *socket_desc)
     if(read_size == 0)
     {
         puts("Client disconnected");
-        fflush(stdout);
+        fflush(sock);
     }
     else if(read_size == -1)
     {
