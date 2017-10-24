@@ -3,3 +3,8 @@
 *~
 *.sw*
 *.dSYM
+
+# Eclipse
+.classpath
+.project
+.settings/
