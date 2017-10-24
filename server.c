@@ -7,7 +7,6 @@
 #include<signal.h>
 #include<pthread.h> //for threading , link with lpthread
 #include <fcntl.h>
-#include "general.h"
 #define ServerDebug 1
 #ifdef ServerDebug
 //#undef ServerDebug

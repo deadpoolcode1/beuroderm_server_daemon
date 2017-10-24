@@ -2,7 +2,20 @@
 #include<string.h>    //strlen
 #include<sys/socket.h>
 #include<arpa/inet.h> //inet_addr
- 
+#include "jsmn.h"
+static const char *JSON_STRING =
+	"{\"unittest\": [{\"message\":\"1\",\"timeout\":\"2\"},{\"message\":\"3\",\"timeout\":\"testnow\"}]}";
+
+
+
+static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
+	if (tok->type == JSMN_STRING && (int) strlen(s) == tok->end - tok->start &&
+			strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
+		return 0;
+	}
+	return -1;
+}
+
 int main(int argc , char *argv[])
 {
     int socket_desc;
@@ -10,7 +23,11 @@ int main(int argc , char *argv[])
     struct timeval tv;
     tv.tv_sec = 1;  /* 1 Secs Timeout */
     tv.tv_usec = 0;  // Not init'ing this can cause strange errors
-	
+	int i;
+	int r;
+	jsmn_parser p;
+	jsmntok_t t[128]; /* We expect no more than 128 tokens */
+
     if (argc<2) 
     {
 	printf("error, usage: ./unittest [address]\n");
@@ -36,8 +53,54 @@ int main(int argc , char *argv[])
     }
      
     puts("Connected now\n");
-    //Send some data
-    message=argv[2];
+    //start testing, parse JSON and send commands
+	jsmn_init(&p);
+	r = jsmn_parse(&p, JSON_STRING, strlen(JSON_STRING), t, sizeof(t)/sizeof(t[0]));
+	if (r < 0) {
+		printf("Failed to parse JSON: %d\n", r);
+		return 1;
+	}
+    /* Assume the top-level element is an object */
+	if (r < 1 || t[0].type != JSMN_OBJECT) {
+		printf("Object expected\n");
+		return 1;
+	}
+	for (i = 1; i < r; i++) 
+	{
+		if (jsoneq(JSON_STRING, &t[i], "unittest") == 0) 
+		{
+			int j;
+			for (j = 0; j < t[i+1].size; j++) {
+				jsmntok_t *g = &t[i+j+2];
+				//printf("  * %.*s\n", g->end - g->start, JSON_STRING + g->start);
+			}
+			i += t[i+1].size + 1;
+		} 
+		if (jsoneq(JSON_STRING, &t[i], "message") == 0) {
+			/* We may use strndup() to fetch string value */
+			printf("- message: %.*s\n", t[i+1].end-t[i+1].start,
+					JSON_STRING + t[i+1].start);
+			i++;
+		} 
+		if (jsoneq(JSON_STRING, &t[i], "timeout") == 0) {
+			/* We may use strndup() to fetch string value */
+			printf("- timeout: %.*s\n", t[i+1].end-t[i+1].start,
+					JSON_STRING + t[i+1].start);
+			i++;
+		} 
+		if (jsoneq(JSON_STRING, &t[i], "response") == 0) {
+			/* We may use strndup() to fetch string value */
+			printf("- response: %.*s\n", t[i+1].end-t[i+1].start,
+					JSON_STRING + t[i+1].start);
+			i++;
+		} 		
+		else 
+		{
+			//printf("Unexpected key: %.*s\n", t[i].end-t[i].start,
+			//		JSON_STRING + t[i].start);
+		}
+	}
+    message=argv[1];
     if( send(socket_desc , message , strlen(message) , 0) < 0)
     {
         puts("Send failed");
