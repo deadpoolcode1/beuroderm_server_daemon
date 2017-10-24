@@ -68,7 +68,11 @@ int open_file(char *filename)
         }
 	return fd;
 }
- 
+
+int read_i2c(char *string_command)
+{
+	return 14;
+} 
 int main(int argc , char *argv[])
 {
     int socket_desc , new_socket , c , *new_sock;
@@ -137,6 +141,8 @@ void *connection_handler(void *socket_desc)
     int read_size;
     char *message , client_message[2000];
     int fd;
+    int result;
+
     struct file_action
     {
          char name [100];
@@ -199,6 +205,20 @@ void *connection_handler(void *socket_desc)
 		}
 		
 	}
+        else if(findSubstr(client_message, "i2c_read")>-1)
+        {
+        /*action is reading a I2C register
+        example: i2c_read:/dev/i2c-1 0x1b 0x5d
+        */
+        struct file_action commandFile;
+		result=read_i2c(client_message);
+                #ifdef ServerDebug
+                printf("value read:%04x\n",result);
+                #endif
+		sprintf(commandFile.value, "%04x", result);
+                write(sock , commandFile.value , strlen(commandFile.value));
+        }
+
 	client_message[0]='\0';
 	sleep(1);
     }
