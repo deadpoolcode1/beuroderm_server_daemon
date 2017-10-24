@@ -4,7 +4,7 @@
 #include<arpa/inet.h> //inet_addr
 #include "jsmn.h"
 static const char *JSON_STRING =
-	"{\"unittest\": [{\"message\":\"1\",\"timeout\":\"2\"},{\"message\":\"3\",\"timeout\":\"testnow\"}]}";
+	"{\"unittest\": [{\"message\":\"write_file:/sys/class/backlight/backlight/brightness=4\",\"timeout\":\"2\"}]}";
 
 
 
@@ -27,6 +27,8 @@ int main(int argc , char *argv[])
 	int r;
 	jsmn_parser p;
 	jsmntok_t t[128]; /* We expect no more than 128 tokens */
+
+	char *tmp;
 
     if (argc<2) 
     {
@@ -77,15 +79,22 @@ int main(int argc , char *argv[])
 			i += t[i+1].size + 1;
 		} 
 		if (jsoneq(JSON_STRING, &t[i], "message") == 0) {
-			/* We may use strndup() to fetch string value */
-			printf("- message: %.*s\n", t[i+1].end-t[i+1].start,
-					JSON_STRING + t[i+1].start);
+			message = strndup(JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start);
+			printf("- message: %s\n", message);
+
+	    	if( send(socket_desc , message , strlen(message) , 0) < 0)
+		    {
+		        puts("Send failed");
+		        return 1;
+		    }
+		    puts("Data Send\n");
+
 			i++;
 		} 
 		if (jsoneq(JSON_STRING, &t[i], "timeout") == 0) {
-			/* We may use strndup() to fetch string value */
-			printf("- timeout: %.*s\n", t[i+1].end-t[i+1].start,
-					JSON_STRING + t[i+1].start);
+			char *timeout_string = strndup(JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start);
+			tv.tv_sec = strtol(timeout_string, &tmp, 10) ;
+			printf("- timeout: %ld\n", tv.tv_sec);
 			i++;
 		} 
 		if (jsoneq(JSON_STRING, &t[i], "response") == 0) {
@@ -101,12 +110,7 @@ int main(int argc , char *argv[])
 		}
 	}
     message=argv[1];
-    if( send(socket_desc , message , strlen(message) , 0) < 0)
-    {
-        puts("Send failed");
-        return 1;
-    }
-    puts("Data Send\n");
+
 
     //Receive a reply from the server
 
