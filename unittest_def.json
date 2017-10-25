@@ -1,10 +1,16 @@
 {
  "Unit_TestObj": 
  [
-   { "message":"write_file:/sys/class/gpio/gpio106/direction=low", "delay":"2", "response":" " },
-   { "message":"write_file:/sys/class/backlight/backlight/brightness=1", "delay":"4", "response":" " },
-   { "message":"write_file:/sys/class/backlight/backlight/brightness=7", "delay":"5", "response":" " },
-   { "message":"read_file:/sys/class/gpio/gpio106/direction", "delay":"3", "response":"out" },
-   { "message":"write_file:/sys/class/gpio/export=106", "delay":"1"}
-  ]
+   { "message":"write_file:/sys/class/gpio/export=106"},
+   { "message":"write_file:/sys/class/gpio/gpio106/direction=out"},
+   { "message":"write_file:/sys/class/gpio/gpio106/direction=out"},
+   { "message":"write_file:/sys/class/gpio/gpio106/value=0", "delay":"2"},
+   { "message":"write_file:/sys/class/gpio/gpio106/value=1", "delay":"1"},
+   { "message":"write_file:/sys/class/gpio/gpio106/value=0"},
+   { "message":"write_file:/sys/class/gpio/export=20", "delay":"1"},
+   { "message":"write_file:/sys/class/gpio/gpio20/direction=in"},
+   { "message":"read_file:/sys/class/gpio/gpio20/value", "response":"1" },
+   { "message":"write_file:/sys/class/backlight/backlight/brightness=3", "delay":"5"},
+   { "message":"write_file:/sys/class/backlight/backlight/brightness=7", "delay":"1"}
+ ]
  }
