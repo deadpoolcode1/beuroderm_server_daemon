@@ -40,7 +40,7 @@ int findSubstr(char *inpText, char *pattern) {
 
         inpText++;
     }
-    return 0;
+    return -1;
 }
 //handles a new connection
 void *connection_handler(void *);
