@@ -203,7 +203,7 @@ void *connection_handler(void *socket_desc)
 		if (fd<0) {}
 		else
 		{
-			write( fd, commandFile.value, strlen(commandFile.value) );
+			// write( fd, commandFile.value, strlen(commandFile.value) );
 			close(fd);	
 		}
 	}
@@ -227,7 +227,8 @@ void *connection_handler(void *socket_desc)
 			printf("value read:%s\n",commandFile.value);
         		#endif
 			close(fd);
-		    	write(sock , commandFile.value , strlen(commandFile.value));
+		    	send(sock , commandFile.value , sizeof(commandFile.value),0);
+                commandFile.value[0] = '\0';
 		}
 		
 	}
