@@ -203,7 +203,7 @@ void *connection_handler(void *socket_desc)
 		if (fd<0) {}
 		else
 		{
-			// write( fd, commandFile.value, strlen(commandFile.value) );
+			write( fd, commandFile.value, strlen(commandFile.value) );
 			close(fd);	
 		}
 	}
