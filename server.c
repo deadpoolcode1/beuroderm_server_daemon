@@ -178,12 +178,14 @@ void *connection_handler(void *socket_desc)
     {
         //Send the message back to client
         //write(sock , client_message , strlen(client_message));
+    client_message[read_size] = '\0';
 	#ifdef ServerDebug
 	printf("message:%s\n",client_message);
 	#endif
 	//now make action according to messaage
 	if(findSubstr(client_message, "write_file")>-1)
 	{
+        fflush(stdin);
 		/*action is writing to a file
 		example: write_file:/sys/class/gpio/export=5
 		*/
@@ -243,8 +245,7 @@ void *connection_handler(void *socket_desc)
 			// sprintf(commandFile.value, "%04x", result);
    //      	write(sock , commandFile.value , strlen(commandFile.value));
    //      }
-
-	client_message[0]='\0';
+    client_message[0]='\0';
 	sleep(1);
     }
      
@@ -260,6 +261,5 @@ void *connection_handler(void *socket_desc)
       
     //Free the socket pointer
     free(socket_desc);
-     
     return 0;
 }

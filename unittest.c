@@ -138,7 +138,7 @@ int main(int argc , char *argv[])
 			{
 				if (delay_on == 0)
 				{
-					delay = 1;
+					delay = 2;
 					printf("*Warning : No delay parameter, default value : %lds\n", delay);
 				}
 
@@ -146,6 +146,13 @@ int main(int argc , char *argv[])
 				{
 					response = "";
 					printf("*Warning : No response parameter\n");
+				}
+
+				if (delay_on == 1 && delay < 3)
+				{
+					delay = 2;
+					printf("*Warning : Delay parameter most be at least 2s, value changed to : %lds\n", delay);
+
 				}
 
 				printf("sending: %s %ld %s\n", message, delay, response );

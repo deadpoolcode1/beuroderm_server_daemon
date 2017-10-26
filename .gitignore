@@ -12,6 +12,7 @@
 .classpath
 .project
 .settings/
+.cproject
 
 # Intellij
 .idea/

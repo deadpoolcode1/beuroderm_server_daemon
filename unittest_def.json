@@ -3,7 +3,7 @@
  [
    { "message":"write_file:/sys/class/gpio/export=106"},
    { "message":"write_file:/sys/class/gpio/gpio106/direction=out"},
-   { "message":"write_file:/sys/class/gpio/gpio106/direction=out"},
+   { "message":"read_file:/sys/class/gpio/gpio106/direction"},
    { "message":"write_file:/sys/class/gpio/gpio106/value=0", "delay":"2"},
    { "message":"write_file:/sys/class/gpio/gpio106/value=1", "delay":"1"},
    { "message":"write_file:/sys/class/gpio/gpio106/value=0"},
