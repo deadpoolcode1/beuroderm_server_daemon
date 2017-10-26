@@ -148,7 +148,7 @@ int main(int argc , char *argv[])
 					printf("*Warning : No response parameter\n");
 				}
 
-				if (delay_on == 1 && delay < 3)
+				if (delay_on == 1 && delay < 1)
 				{
 					delay = 2;
 					printf("*Warning : Delay parameter most be at least 2s, value changed to : %lds\n", delay);
@@ -163,7 +163,6 @@ int main(int argc , char *argv[])
 			        puts("Send failed");
 			        return 1;
 			    }
-			    puts("Data Sent\n");
 
 				sleep(delay);
 
@@ -244,7 +243,7 @@ int main(int argc , char *argv[])
 	}
 
 
-    //Receive a reply from the server
+    Receive a reply from the server
 
     if( recv(socket_desc, server_reply , 2000 , 0) < 0)
     {
