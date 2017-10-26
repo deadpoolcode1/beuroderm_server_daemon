@@ -6,15 +6,41 @@
 #include <sys/time.h>
 #include <arpa/inet.h> //inet_addr
 #include "jsmn.h"
-// static const char *JSON_STRING =
-// 	"{\"unittest\": [{\"message\":\"write_file:/sys/class/backlight/backlight/brightness=7\",\"delay\":\"2\"},{\"message\":\"write_file:/sys/class/backlight/backlight/brightness=2\",\"delay\":\"1\"}]}";
-
-
-
 
 typedef int bool;
 #define true 1
 #define false 0
+
+#define default_delay 2
+
+/*
+function return index of occurance pattern in string
+*/
+int findSubstr(char *inpText, char *pattern) {
+    int inplen = strlen(inpText);
+    while (inpText != NULL) {
+
+        char *remTxt = inpText;
+        char *remPat = pattern;
+
+        if (strlen(remTxt) < strlen(remPat)) {
+            /* printf ("length issue remTxt %s \nremPath %s \n", remTxt, remPat); */
+            return -1;
+        }
+        while (*remTxt++ == *remPat++) {
+            if (*remPat == '\0') {
+                return inplen - strlen(inpText+1);
+            }
+            if (remTxt == NULL) {
+                return -1;
+            }
+        }
+        remPat = pattern;
+
+        inpText++;
+    }
+    return 0;
+}
 
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
 	if (tok->type == JSMN_STRING && (int) strlen(s) == tok->end - tok->start &&
@@ -24,38 +50,148 @@ static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
 	return -1;
 }
 
-int main(int argc , char *argv[])
+static bool inputCheck(int argc ,const char *argv[])
 {
+	// Check for address input and file input
+	// Example: ./unittest 10.0.0.36 unittest_def.json
+    if (argc != 3 ) 
+    {
+	printf("Error, usage: ./unittest [address] [file] \n");
+    	return false;
+	}
 
+	//Reading json file
+	if(access(argv[2], R_OK) == -1)
+	{
+		printf("file %s not found or permission error\n", argv[2]);
+		return false;
+	}
+
+	return true;
+}
+
+bool sendMessage(char ipAddress[255], char *message, long delay, char *response, int response_on)
+{
     int socket_desc;
     struct sockaddr_in server;
     struct timeval tv;
-    tv.tv_sec = 1;  /* 1 Secs Timeout */
+    tv.tv_sec = 5;  /* 1 Secs Timeout */
     tv.tv_usec = 0;  // Not init'ing this can cause strange errors
+    char server_reply[128];
+    char *test_result;
+	
+	//Create socket
+    socket_desc = socket(AF_INET , SOCK_STREAM , 0);
+    if (socket_desc == -1)
+    {
+        puts("Could not create socket");
+    }
+         
+    server.sin_addr.s_addr = inet_addr(ipAddress);
+    server.sin_family = AF_INET;
+    server.sin_port = htons( 5797 );
+ 	setsockopt(socket_desc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,sizeof(struct timeval));
+
+    //Connect to remote server
+    if (connect(socket_desc , (struct sockaddr *)&server , sizeof(server)) < 0)
+    {
+        puts("Connection error");
+        return false;
+    }
+
+	printf("sending: %s %ld %s\n", message, delay, response );
+
+	//Sending the message
+	if( send(socket_desc , message , strlen(message) , 0) < 0)
+    {
+        puts("Send failed");
+        return 1;
+    }
+
+    // Receive a reply from the server
+    if( (response && !response[0]) || response_on == 0 )
+    {
+		puts("No Respone");
+    }
+    else
+    {
+    	if( read(socket_desc, server_reply , 128 ) < 0)
+	    {
+	        puts("recv failed");
+	        close(socket_desc);
+	        return 1;
+
+	    }
+
+	    if(findSubstr(server_reply, response)>-1)
+	    {
+	    	test_result = "succeed";
+	    }
+	    else
+	    {
+	    	test_result = "failed";
+	    }
+	    printf("%ld\n", sizeof(server_reply) );
+	    printf("Response received : %s , test result : %s \n", server_reply, test_result );
+    }
+
+	sleep(delay);
+	close(socket_desc);
+
+	return true;
+}
+
+void checkMessageValues(int delay_on, int response_on, long *delay, char **response)
+{
+	if (delay_on == 0)
+	{
+		*delay = default_delay;
+		printf("*Warning : No delay parameter, default value : %lds\n", *delay);
+	}
+
+	if (response_on == 0)
+	{
+		*response = "";
+		printf("*Warning : No response parameter\n");
+	}
+
+	if (delay_on == 1 && *delay < default_delay)
+	{
+		*delay = default_delay;
+		printf("*Warning : Delay parameter most be at least 2s, value changed to : %lds\n", *delay);
+
+	}
+}
+
+int main(int argc , const char *argv[])
+{
+
+	if(inputCheck(argc, argv) == false)
+	{
+		return 1;
+	}
+
+
+	//Json Parser variables
 	int i;
 	int r;
 	jsmn_parser p;
-	jsmntok_t t[128]; /* We expect no more than 128 tokens */
+	jsmntok_t t[128]; // We expect no more than 128 tokens
 
+	//Variables for message value
+	char *message;
+	char *response;
+	long delay;
 	char *tmp;
 
+	//File reading variables
 	FILE *fp;
 	long lSize;
 	char *JSON_STRING;
 
-	// Check for address input
-    if (argc<3) 
-    {
-	printf("Error, usage: ./unittest [address] [file]\n");
-    	return 1;
-	}
-
-		//reading json file
-	if(access(argv[2], R_OK) == -1)
-	{
-		printf("file %s not found or permission error\n", argv[2]);
-		return 1;
-	}
+	//Server varibles
+	char inputAddress[255];
+	strcpy(inputAddress, argv[1]);
 
 
 	printf("Loading tests from %s\n", argv[2] );
@@ -65,7 +201,7 @@ int main(int argc , char *argv[])
 	lSize = ftell( fp );
 	rewind( fp );
 
-	/* allocate memory for entire content */	
+	//allocate memory for entire content
 	JSON_STRING = calloc( 1, lSize+1 );
 	if( !JSON_STRING ) 
 	{
@@ -82,33 +218,6 @@ int main(int argc , char *argv[])
 		return 0;
 	}
 
-	// Variables
-
-	char *message , server_reply[2000];
-	char *response;
-	long delay;
-	
-	
-    //Create socket
-    socket_desc = socket(AF_INET , SOCK_STREAM , 0);
-    if (socket_desc == -1)
-    {
-        printf("Could not create socket");
-    }
-         
-    server.sin_addr.s_addr = inet_addr(argv[1]);
-    server.sin_family = AF_INET;
-    server.sin_port = htons( 5797 );
- 	setsockopt(socket_desc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,sizeof(struct timeval));
-
-    //Connect to remote server
-    if (connect(socket_desc , (struct sockaddr *)&server , sizeof(server)) < 0)
-    {
-        puts("Connection error");
-        return 1;
-    }
-     
-    puts("Connected now\n");
 
     //Start testing, parse JSON and send commands
 	jsmn_init(&p);
@@ -136,35 +245,12 @@ int main(int argc , char *argv[])
 
 			if(msg_on == 1)
 			{
-				if (delay_on == 0)
+				checkMessageValues(delay_on, response_on, &delay, &response);
+
+				if(sendMessage(inputAddress, message, delay, response, response_on) == false)
 				{
-					delay = 2;
-					printf("*Warning : No delay parameter, default value : %lds\n", delay);
+					return 1;
 				}
-
-				if (response_on == 0)
-				{
-					response = "";
-					printf("*Warning : No response parameter\n");
-				}
-
-				if (delay_on == 1 && delay < 1)
-				{
-					delay = 2;
-					printf("*Warning : Delay parameter most be at least 2s, value changed to : %lds\n", delay);
-
-				}
-
-				printf("sending: %s %ld %s\n", message, delay, response );
-
-				//Sending the message
-		    	if( send(socket_desc , message , strlen(message) , 0) < 0)
-			    {
-			        puts("Send failed");
-			        return 1;
-			    }
-
-				sleep(delay);
 
 				//Resets the temp values
 				msg_on = 0;
@@ -213,48 +299,23 @@ int main(int argc , char *argv[])
 	//sending last response
 	if(msg_on == 1)
 	{
-		if (delay_on == 0)
+
+		checkMessageValues(delay_on, response_on, &delay, &response);
+
+		if(sendMessage(inputAddress, message, delay, response, response_on) == false)
 		{
-			delay = 1;
-			printf("*Warning : No delay parameter, default value : %lds\n", delay);
+			return 1;
 		}
 
-		if (response_on == 0)
-		{
-			response = "";
-			printf("*Warning : No response parameter\n");
-		}
-
-		printf("sending: %s %ld %s\n", message, delay, response );
-
-		//Sending the message
-    	if( send(socket_desc , message , strlen(message) , 0) < 0)
-	    {
-	        puts("Send failed");
-	        return 1;
-	    }
-	    puts("Data Sent\n");
-
-		sleep(delay);
-
-
-		fclose(fp);
-		free(JSON_STRING);
 	}
 
+	
+	fclose(fp);
+	free(JSON_STRING);
 
-    Receive a reply from the server
-
-    if( recv(socket_desc, server_reply , 2000 , 0) < 0)
-    {
-        puts("recv failed");
-        close(socket_desc);
-        return 1;
-
-    }
-    puts("Reply received:\n");
-    puts(server_reply);
-
-    close(socket_desc);
     return 0;
 }
+
+
+
+

@@ -1,7 +1,7 @@
 {
  "Unit_TestObj": 
  [
-   { "message":"write_file:/sys/class/gpio/gpio20/direction=out", "delay":"2"},
+   { "message":"write_file:/sys/class/gpio/gpio20/direction=out", "delay":"1"},
    { "message":"read_file:/sys/class/gpio/gpio20/direction", "response":"out" }
  ]
 }
