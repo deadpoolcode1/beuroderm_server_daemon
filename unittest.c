@@ -53,7 +53,7 @@ int main(int argc , char *argv[])
 		//reading json file
 	if(access(argv[2], R_OK) == -1)
 	{
-		printf("file %d not found or permission error\n");
+		printf("file %s not found or permission error\n", argv[2]);
 		return 1;
 	}
 
@@ -129,7 +129,6 @@ int main(int argc , char *argv[])
 	int msg_on = 0;
 	int delay_on = 0;
 	int response_on = 0;
-	bool ftitle = false;
 
 	for (i = 1; i < r; i++) 
 	{
@@ -140,7 +139,7 @@ int main(int argc , char *argv[])
 				if (delay_on == 0)
 				{
 					delay = 1;
-					printf("*Warning : No delay parameter, default value : %ds\n", delay);
+					printf("*Warning : No delay parameter, default value : %lds\n", delay);
 				}
 
 				if (response_on == 0)
@@ -149,18 +148,17 @@ int main(int argc , char *argv[])
 					printf("*Warning : No response parameter\n");
 				}
 
+				printf("sending: %s %ld %s\n", message, delay, response );
+
 				//Sending the message
-				socket_desc.flush();
 		    	if( send(socket_desc , message , strlen(message) , 0) < 0)
 			    {
 			        puts("Send failed");
 			        return 1;
 			    }
-			    puts("Data Send\n");
+			    puts("Data Sent\n");
 
 				sleep(delay);
-
-				printf("sending: %s %d %s\n", message, delay, response );
 
 				//Resets the temp values
 				msg_on = 0;
@@ -212,23 +210,26 @@ int main(int argc , char *argv[])
 		if (delay_on == 0)
 		{
 			delay = 1;
-			printf("*Warning : No delay parameter, default value : %ds\n", delay);
+			printf("*Warning : No delay parameter, default value : %lds\n", delay);
 		}
 
 		if (response_on == 0)
 		{
+			response = "";
 			printf("*Warning : No response parameter\n");
 		}
 
-		socket_desc.flush();
-		//Last test send
-		if( send(socket_desc , message , strlen(message) , 0) < 0)
+		printf("sending: %s %ld %s\n", message, delay, response );
+
+		//Sending the message
+    	if( send(socket_desc , message , strlen(message) , 0) < 0)
 	    {
 	        puts("Send failed");
 	        return 1;
 	    }
-	    puts("Data Send\n");
-	    printf("sending: %s %d %s\n", message, delay, response );
+	    puts("Data Sent\n");
+
+		sleep(delay);
 
 
 		fclose(fp);

@@ -1,8 +1,9 @@
 {
  "Unit_TestObj": 
  [
-   { "message":"write_file:/sys/class/backlight/backlight/brightness=7", "delay":"5", "response":" " },
-   { "message":"read_file:/sys/class/gpio/gpio106/direction", "delay":"3", "response":"out" },
-   { "message":"write_file:/sys/class/gpio/export=106", "delay":"1"}
+   { "message":"write_file:/sys/class/backlight/backlight/brightness=1", "delay":"5"},
+   { "message":"write_file:/sys/class/backlight/backlight/brightness=7", "delay":"2"},
+   { "message":"read_file:/sys/class/gpio/gpio106/direction", "delay":"3"},
+   { "message":"write_file:/sys/class/gpio/export=106"}
   ]
  }
