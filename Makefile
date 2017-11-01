@@ -5,6 +5,7 @@ CCMAC = gcc-4.8
 CFLAGS  = -Wall  -ggdb
 RM      = rm -f
 
+##Server complier is cross compile android
 
 server: server.c
 	$(CCARM) $(CFLAGS)  -static -o server.o server.c -lpthread
