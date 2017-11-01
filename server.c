@@ -76,28 +76,54 @@ int open_file(char *filename)
 handles read i2c server command
 exaqmple: /dev/i2c-1;0x1b;0x5d
 */
-// uint8_t read_i2c(char *string_command)
-// {
-// 	char *path;
-// 	int addr=0, reg=0, data;
-// 	int file, rc;
-// 	path[0]='\0';
-// 	//(scanf("%80[^;],%d[^;],%d",path ,addr , reg, &string_command) == 4)
-// 	file = open(path, O_RDWR);
-// 	if (file < 0)
-// 		err(errno, "Tried to open '%s'", path); 
+uint8_t read_i2c(char *string_command)
+{
+     char *path;
+     int addr=0, reg=0, data;
+     int file, rc;
 
-// 	rc = ioctl(file, I2C_SLAVE_FORCE, addr);
-// 	if (rc < 0)
-// 		err(errno, "Tried to set device address '0x%02x'", addr);
+     const char s[2] = ";";
 
-// 	data = i2c_smbus_read_byte_data(file, reg);
-// 	#ifdef ServerDebug
-// 	printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",
-// 			path, addr, reg, data);
-// 	#endif
-// 	return data;
-// } 
+     char *tmp[4];
+
+     tmp[0] = strtok(string_command, s);
+
+     for (int i = 1; i < 4; ++i)
+     {
+         tmp[i] = strtok(NULL, s);
+     }
+
+     if(NULL != tmp[3])
+     {
+         printf("Error in i2c input");
+         return (0);
+     }
+     else
+     {
+         path = tmp[0];
+         addr = (int)strtol(tmp[1], NULL, 16);
+         reg = (int)strtol(tmp[2], NULL, 16);
+    #ifdef ServerDebug
+         printf("Path: %s\nAddr: %s(hex), %d(int)\nReg: %s(hex), %d(int)", path, tmp[1], addr, tmp[2], reg);
+    #endif
+     }
+
+    file = open(path, O_RDWR);
+    if (file < 0)
+        err(errno, "Tried to open '%s'", path);
+
+    rc = ioctl(file, I2C_SLAVE_FORCE, addr);
+    if (rc < 0)
+        err(errno, "Tried to set device address '0x%02x'", addr);
+
+    data = i2c_smbus_read_byte_data(file, reg);
+
+    printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",
+            path, addr, reg, data);
+    #endif
+    return data;
+} 
+
 int main(int argc , char *argv[])
 {
     int socket_desc , new_socket , c , *new_sock;
