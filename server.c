@@ -76,6 +76,7 @@ int open_file(char *filename)
 handles read i2c server command
 exaqmple: /dev/i2c-1;0x1b;0x5d
 */
+
 uint8_t read_i2c(char *string_command)
 {
      char *path;
