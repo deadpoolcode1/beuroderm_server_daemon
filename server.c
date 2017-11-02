@@ -118,7 +118,8 @@ uint8_t read_i2c(char *string_command)
         err(errno, "Tried to set device address '0x%02x'", addr);
 
     // i2c_smbus_read_byte_data - ?
-    
+
+    i2c_smbus_read_byte_data(file, (uint8_t)reg);
     // data = i2c_smbus_read_byte_data(file, reg);
     //printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",path, addr, reg, data);
     // printf("%d\n", data );
