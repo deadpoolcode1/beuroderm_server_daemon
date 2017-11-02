@@ -2,7 +2,7 @@ CROSS_COMPILE_ANDROID=	/opt/toolchains/arm-2009q3/bin/arm-none-linux-gnueabi-
 CCARM=	$(CROSS_COMPILE_ANDROID)gcc
 CC = gcc
 CCMAC = gcc-4.8
-CFLAGS  = -Wall -std=c99 -ggdb
+CFLAGS  = -Wall -std=gnu99 -ggdb
 RM      = rm -f
 
 ##Server complier is cross compile android
