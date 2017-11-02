@@ -79,7 +79,7 @@ exaqmple: /dev/i2c-1;0x1b;0x5d
 uint8_t read_i2c(char *string_command)
 {
      char *path;
-     int addr=0, reg=0;
+     uint8_t addr=0, reg=0;
      // int data;
      int file, rc;
 
@@ -102,10 +102,10 @@ uint8_t read_i2c(char *string_command)
      else
      {
          path = tmp[0];
-         addr = (int)strtol(tmp[1], NULL, 16);
-         reg = (int)strtol(tmp[2], NULL, 16);
+         addr = (uint8_t)strtol(tmp[1], NULL, 16);
+         reg = (uint8_t)strtol(tmp[2], NULL, 16);
     #ifdef ServerDebug
-         printf("Path: %s\nAddr: %s(hex), %d(int)\nReg: %s(hex), %d(int)", path, tmp[1], addr, tmp[2], reg);
+         printf("Path: %s\nAddr: %s(hex), %d(int)\nReg: %s(hex), %d(int)\n", path, tmp[1], addr, tmp[2], reg);
     #endif
      }
 
@@ -118,11 +118,12 @@ uint8_t read_i2c(char *string_command)
         err(errno, "Tried to set device address '0x%02x'", addr);
 
     // i2c_smbus_read_byte_data - ?
-    /*
-    data = i2c_smbus_read_byte_data(file, reg);
-    printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",path, addr, reg, data);
-    retun data;
-    */
+    
+    // data = i2c_smbus_read_byte_data(file, reg);
+    //printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",path, addr, reg, data);
+    // printf("%d\n", data );
+    //retun data;
+    
 
     return 0;
 } 
