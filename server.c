@@ -76,11 +76,11 @@ int open_file(char *filename)
 handles read i2c server command
 exaqmple: /dev/i2c-1;0x1b;0x5d
 */
-
 uint8_t read_i2c(char *string_command)
 {
      char *path;
-     int addr=0, reg=0, data;
+     int addr=0, reg=0;
+     // int data;
      int file, rc;
 
      const char s[2] = ";";
@@ -117,12 +117,14 @@ uint8_t read_i2c(char *string_command)
     if (rc < 0)
         err(errno, "Tried to set device address '0x%02x'", addr);
 
+    // i2c_smbus_read_byte_data - ?
+    /*
     data = i2c_smbus_read_byte_data(file, reg);
+    printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",path, addr, reg, data);
+    retun data;
+    */
 
-    printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",
-            path, addr, reg, data);
-    #endif
-    return data;
+    return 0;
 } 
 
 int main(int argc , char *argv[])
@@ -192,7 +194,7 @@ void *connection_handler(void *socket_desc)
     int read_size;
     char client_message[2000];
     int fd;
-    // int result;
+    int result;
 
     struct file_action
     {
@@ -259,20 +261,20 @@ void *connection_handler(void *socket_desc)
 		}
 		
 	}
-   //      else if(findSubstr(client_message, "i2c_read")>-1)
-   //      {
-   //      	/*action is reading a I2C register
-   //      	example: i2c_read:/dev/i2c-1;0x1b;0x5d
-   //      	*/
-   //      	struct file_action commandFile;
-			// strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
-			// result=read_i2c(commandFile.name);
-   //      	#ifdef ServerDebug
-   //      	printf("value read:%04x\n",result);
-   //      	#endif
-			// sprintf(commandFile.value, "%04x", result);
-   //      	write(sock , commandFile.value , strlen(commandFile.value));
-   //      }
+        else if(findSubstr(client_message, "i2c_read")>-1)
+        {
+        	/*action is reading a I2C register
+        	example: i2c_read:/dev/i2c-1;0x1b;0x5d
+        	*/
+        	struct file_action commandFile;
+			strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
+			result=read_i2c(commandFile.name);
+        	#ifdef ServerDebug
+        	printf("value read:%04x\n",result);
+        	#endif
+			sprintf(commandFile.value, "%04x", result);
+        	write(sock , commandFile.value , strlen(commandFile.value));
+        }
     client_message[0]='\0';
 	sleep(1);
     }
