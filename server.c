@@ -80,7 +80,7 @@ uint8_t read_i2c(char *string_command)
 {
      char *path;
      uint8_t addr=0, reg=0;
-     // int data;
+     int data;
      int file, rc;
 
      const char s[2] = ";";
@@ -119,14 +119,10 @@ uint8_t read_i2c(char *string_command)
 
     // i2c_smbus_read_byte_data - ?
 
-    i2c_smbus_read_byte_data(file, (uint8_t)reg);
-    // data = i2c_smbus_read_byte_data(file, reg);
+    data = i2c_smbus_read_byte_data(file, reg);
     //printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",path, addr, reg, data);
-    // printf("%d\n", data );
-    //retun data;
-    
-
-    return 0;
+    printf("%d\n", data );
+    return data;
 } 
 
 int main(int argc , char *argv[])
