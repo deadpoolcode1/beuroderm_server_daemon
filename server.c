@@ -247,7 +247,6 @@ void *connection_handler(void *socket_desc)
 		printf("file to read:%s\n",commandFile.name);
         #endif
         fd = open_file(commandFile.name);
-        printf("%d\n", fd );
 		if (fd<0) 
         {
             strcpy(error_msg, "Error: Unable to read the value");
