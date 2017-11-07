@@ -194,6 +194,8 @@ void *connection_handler(void *socket_desc)
     int fd;
     int result;
 
+    char error_msg[2000];
+
     struct file_action
     {
          char name [100];
@@ -245,7 +247,12 @@ void *connection_handler(void *socket_desc)
 		printf("file to read:%s\n",commandFile.name);
         #endif
         fd = open_file(commandFile.name);
-		if (fd<0) {}
+        printf("%d\n", fd );
+		if (fd<0) 
+        {
+            strcpy(error_msg, "Error: Unable to read the value");
+            write(sock , error_msg , strlen(error_msg));
+        }
 		else
 		{
 			
