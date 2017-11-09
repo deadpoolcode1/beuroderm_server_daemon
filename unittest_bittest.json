@@ -1,6 +1,6 @@
 {
  "Unit_TestObj": 
  [
- 	{ "message":"bittest_init:full"},
+ 	{ "message":"bittest_read", "response":" "},
  ]
 }

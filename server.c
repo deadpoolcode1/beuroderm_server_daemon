@@ -209,6 +209,8 @@ int main(int argc , char *argv[])
 {
     int socket_desc , new_socket , c , *new_sock;
     struct sockaddr_in server , client;
+
+    bittest_init_full();
      
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -271,6 +273,7 @@ void *connection_handler(void *socket_desc)
     int sock = *(int*)socket_desc;
     int read_size;
     char client_message[2000];
+    char returnMsg[1000];
     int fd;
     int result;
 
@@ -361,9 +364,11 @@ void *connection_handler(void *socket_desc)
     else if(findSubstr(client_message, "bittest_init")>-1)
     {
         /*action is bittest_init
-        example: read_file:/sys/class/gpio/gpio5/value
         */
         char type[128];
+
+        returnMsg[0] = '\0';
+
 
         strcpy( type, client_message+findSubstr(client_message, ":") );
         #ifdef ServerDebug
@@ -372,7 +377,19 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
+            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+            write(sock , returnMsg , strlen(returnMsg));
         }
+    }
+        else if(findSubstr(client_message, "bittest_read")>-1)
+    {
+        /*action is bittest_read
+        */
+        returnMsg[0] = '\0';
+
+        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+        write(sock , returnMsg , strlen(returnMsg));
+        
     }
     client_message[0]='\0';
 	sleep(1);
