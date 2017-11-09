@@ -389,6 +389,7 @@ void *connection_handler(void *socket_desc)
 
         sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
         write(sock , returnMsg , strlen(returnMsg));
+        printf("Bit test status sent\n");
         
     }
     client_message[0]='\0';
