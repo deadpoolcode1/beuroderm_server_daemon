@@ -377,7 +377,7 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " [ \"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\b\"}", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+            sprintf(returnMsg, "[{\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}]", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
@@ -387,7 +387,7 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, "[{\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\b\"}]", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+        sprintf(returnMsg, "[{\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}]", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
         write(sock , returnMsg , strlen(returnMsg));
         printf("Bit test status sent\n");
         
