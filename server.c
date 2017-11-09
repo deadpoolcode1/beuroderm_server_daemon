@@ -14,6 +14,16 @@
 #ifdef ServerDebug
 //#undef ServerDebug
 #endif
+
+// {"ble":"pass","hall sensor":"pass","time":"Sun Nov  5 22:21:34 GMT 2017"}
+
+    struct bittest_info
+    {
+         char ble_status[100];
+         char hall_status[100];
+         char timestamp[100];
+    };
+
 /*
 function return index of occurance pattern in string
 */
@@ -46,6 +56,7 @@ int findSubstr(char *inpText, char *pattern) {
 void *connection_handler(void *);
 
 int socket_desc_main;
+struct bittest_info currect_bittest;
 
 
 /*
@@ -68,9 +79,29 @@ int open_file(char *filename)
 	fd = open(filename, O_RDWR);
 	if (fd < 0) 
 	{
-         	printf("can not open file\n");
-        }
+         	printf(" - Can not open file : %s\n", filename);
+    }
 	return fd;
+}
+
+int file_exists(char *filename)
+{
+    int fd;
+    fd = access( filename, F_OK );
+    if( fd != -1 ) 
+    {
+        #ifdef ServerDebug
+            printf(" - file %s exits\n", filename);
+        #endif
+    }
+    else
+    {
+        #ifdef ServerDebug
+            printf(" - file %s not exits\n", filename);;
+        #endif
+    }
+
+    return fd;
 }
 /*
 handles read i2c server command
@@ -124,6 +155,55 @@ uint8_t read_i2c(char *string_command)
     printf("%d\n", data );
     return data;
 } 
+
+//fucnction that runs bittest full test
+void bittest_init_full()
+{
+    // /sys/halleffect/
+    // /dev/hci_tty
+
+    time_t ltime;
+
+    printf("\n\n*** Bit testing procedure started! ***\n\n");
+
+    if ( file_exists("/dev/hci_tty") >-1 )
+    {
+        strcpy(currect_bittest.ble_status, "Passed");;
+    }
+    else
+    {
+        strcpy(currect_bittest.ble_status, "Failed");
+    }
+
+    printf("BLA test: %s\n", currect_bittest.ble_status);
+
+    if ( file_exists("/sys/halleffect/") >-1 )
+    {
+        strcpy(currect_bittest.hall_status, "Passed");
+    }
+    else
+    {
+        strcpy(currect_bittest.hall_status, "Failed");
+    }
+
+    printf("Hall sensor test: %s\n", currect_bittest.hall_status );
+
+    if (findSubstr(currect_bittest.ble_status, "Passed")>-1 && findSubstr(currect_bittest.hall_status, "Passed")>-1 )
+    {
+        time(&ltime);
+        strcpy(currect_bittest.timestamp , ctime(&ltime));
+
+        printf("\n\n*** Bit test Passed! ***\n\n");
+        printf("\n\n*** Timestamp : %s ***\n\n", currect_bittest.timestamp );
+    }
+    else
+    {
+        printf("\n\n*** Bit test Failed! ***\n\n");
+    }
+    
+
+
+}
 
 int main(int argc , char *argv[])
 {
@@ -263,22 +343,37 @@ void *connection_handler(void *socket_desc)
 		    	send(sock , commandFile.value , sizeof(commandFile.value),0);
                 commandFile.value[0] = '\0';
 		}
-		
-	}
-        else if(findSubstr(client_message, "i2c_read")>-1)
+    }
+    else if(findSubstr(client_message, "i2c_read")>-1)
+    {
+    	/*action is reading a I2C register
+    	example: i2c_read:/dev/i2c-1;0x1b;0x5d
+    	*/
+    	struct file_action commandFile;
+		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
+		result=read_i2c(commandFile.name);
+    	#ifdef ServerDebug
+    	printf("value read:%04x\n",result);
+    	#endif
+		sprintf(commandFile.value, "%04x", result);
+    	write(sock , commandFile.value , strlen(commandFile.value));
+    }
+    else if(findSubstr(client_message, "bittest_init")>-1)
+    {
+        /*action is bittest_init
+        example: read_file:/sys/class/gpio/gpio5/value
+        */
+        char type[128];
+
+        strcpy( type, client_message+findSubstr(client_message, ":") );
+        #ifdef ServerDebug
+        printf("bittest init type:%s\n",type);
+        #endif
+        if(findSubstr(client_message, "full")>-1)
         {
-        	/*action is reading a I2C register
-        	example: i2c_read:/dev/i2c-1;0x1b;0x5d
-        	*/
-        	struct file_action commandFile;
-			strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
-			result=read_i2c(commandFile.name);
-        	#ifdef ServerDebug
-        	printf("value read:%04x\n",result);
-        	#endif
-			sprintf(commandFile.value, "%04x", result);
-        	write(sock , commandFile.value , strlen(commandFile.value));
+            bittest_init_full();
         }
+    }
     client_message[0]='\0';
 	sleep(1);
     }
