@@ -162,7 +162,8 @@ void bittest_init_full()
     // /sys/halleffect/
     // /dev/hci_tty
 
-    time_t ltime;
+    time_t t = time(NULL);
+    struct tm * p = localtime(&t);
 
     printf("\n\n*** Bit testing procedure started! ***\n\n");
 
@@ -190,8 +191,7 @@ void bittest_init_full()
 
     if (findSubstr(currect_bittest.ble_status, "Passed")>-1 && findSubstr(currect_bittest.hall_status, "Passed")>-1 )
     {
-        time(&ltime);
-        strcpy(currect_bittest.timestamp , ctime(&ltime));
+        strftime(currect_bittest.timestamp, 1000, "%c" , p);
 
         printf("\n\n*** Bit test Passed! ***\n\n");
         printf("\n\n*** Timestamp : %s ***\n\n", currect_bittest.timestamp );
@@ -377,7 +377,7 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+            sprintf(returnMsg, " [ \"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\b\"}", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
@@ -387,7 +387,7 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+        sprintf(returnMsg, "[{\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\b\"}]", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
         write(sock , returnMsg , strlen(returnMsg));
         printf("Bit test status sent\n");
         
