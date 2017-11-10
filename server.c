@@ -367,7 +367,7 @@ void *connection_handler(void *socket_desc)
     	#ifdef ServerDebug
     	printf("value read:%04x\n",result);
     	#endif
-		sprintf(commandFile.value, "%04x", result);
+		sprintf(commandFile.value, "%04x\n", result);
     	write(sock , commandFile.value , strlen(commandFile.value));
     }
     else if(findSubstr(client_message, "bittest_init")>-1)
