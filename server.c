@@ -15,14 +15,13 @@
 //#undef ServerDebug
 #endif
 
-// {"ble":"pass","hall sensor":"pass","time":"Sun Nov  5 22:21:34 GMT 2017"}
+struct bittest_info
+{
+     char ble_status[100];
+     char hall_status[100];
+     char timestamp[100];
+};
 
-    struct bittest_info
-    {
-         char ble_status[100];
-         char hall_status[100];
-         char timestamp[100];
-    };
 
 /*
 function return index of occurance pattern in string
@@ -52,12 +51,20 @@ int findSubstr(char *inpText, char *pattern) {
     }
     return 0;
 }
+
+void delay(unsigned int mseconds)
+{
+    clock_t goal = mseconds + clock();
+    while (goal > clock())
+        ;
+}
+
+struct bittest_info currect_bittest;
+
 //handles a new connection
 void *connection_handler(void *);
 
 int socket_desc_main;
-struct bittest_info currect_bittest;
-
 
 /*
 function to handle ctrl+c response 
@@ -169,27 +176,27 @@ void bittest_init_full()
 
     if ( file_exists("/dev/hci_tty") >-1 )
     {
-        strcpy(currect_bittest.ble_status, "Passed");;
+        strcpy(currect_bittest.ble_status, "passed");;
     }
     else
     {
-        strcpy(currect_bittest.ble_status, "Failed");
+        strcpy(currect_bittest.ble_status, "failed");
     }
 
     printf("BLA test: %s\n", currect_bittest.ble_status);
 
     if ( file_exists("/sys/halleffect/") >-1 )
     {
-        strcpy(currect_bittest.hall_status, "Passed");
+        strcpy(currect_bittest.hall_status, "passed");
     }
     else
     {
-        strcpy(currect_bittest.hall_status, "Failed");
+        strcpy(currect_bittest.hall_status, "failed");
     }
 
     printf("Hall sensor test: %s\n", currect_bittest.hall_status );
 
-    if (findSubstr(currect_bittest.ble_status, "Passed")>-1 && findSubstr(currect_bittest.hall_status, "Passed")>-1 )
+    if (findSubstr(currect_bittest.ble_status, "passed")>-1 && findSubstr(currect_bittest.hall_status, "passed")>-1 )
     {
         strftime(currect_bittest.timestamp, 1000, "%c" , p);
 
@@ -207,6 +214,7 @@ void bittest_init_full()
 
 int main(int argc , char *argv[])
 {
+
     int socket_desc , new_socket , c , *new_sock;
     struct sockaddr_in server , client;
 
@@ -273,17 +281,18 @@ void *connection_handler(void *socket_desc)
     int sock = *(int*)socket_desc;
     int read_size;
     char client_message[2000];
-    char returnMsg[1000];
+    char returnMsg[100];
     int fd;
     int result;
 
-    char error_msg[2000];
+    char error_msg[100];
 
     struct file_action
     {
          char name [100];
          char value [100];
     };
+
     client_message[0]='\0';
     //Receive a message from client
     while( (read_size = recv(sock , client_message , 2000 , 0)) > 0 )
@@ -377,7 +386,7 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " [{\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}] ", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
@@ -387,9 +396,9 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " [{\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"}] ", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
 
-        write(sock , returnMsg , strlen(returnMsg));
+        send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
         
     }
