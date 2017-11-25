@@ -390,7 +390,7 @@ void *connection_handler(void *socket_desc)
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
-        else if(findSubstr(client_message, "bittest_read")>-1)
+    else if(findSubstr(client_message, "bittest_read")>-1)
     {
         /*action is bittest_read
         */
@@ -401,6 +401,18 @@ void *connection_handler(void *socket_desc)
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
         
+    }
+    else if(findSubstr(client_message, "read_time")>-1)
+	{
+		/*action is reading current time
+		example: read_time
+		*/	
+		time_t t = time(NULL);
+		struct tm * p = localtime(&t);
+		returnMsg[0] = '\0';
+		strftime(returnMsg, 1000, "%c" , p);	
+        send(sock , returnMsg , strlen(returnMsg),0);
+        printf("returnMsg\n");
     }
     client_message[0]='\0';
 	sleep(1);
