@@ -205,6 +205,7 @@ void bittest_init_full()
     }
     else
     {
+    	strftime(currect_bittest.timestamp, 1000, "%c" , p);
         printf("\n\n*** Bit test Failed! ***\n\n");
     }
     
@@ -383,6 +384,7 @@ void *connection_handler(void *socket_desc)
         #ifdef ServerDebug
         printf("bittest init type:%s\n",type);
         #endif
+        printf("bittest init type:%s\n",type);
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
