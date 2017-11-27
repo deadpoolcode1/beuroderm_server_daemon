@@ -407,7 +407,7 @@ void *connection_handler(void *socket_desc)
     else if(findSubstr(client_message, "read_time")>-1)
 	{
 		/*action is reading current time
-		example: read_time
+		example: ./send.o 10.0.0.36 read_time
 		*/	
 		time_t t = time(NULL);
 		struct tm * p = localtime(&t);
@@ -416,6 +416,50 @@ void *connection_handler(void *socket_desc)
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("returnMsg\n");
     }
+    else if(findSubstr(client_message, "write_time")>-1)
+	{
+		pid_t my_pid, parent_pid, child_pid;
+        fflush(stdin);
+		/*action is writing time
+		example: ./send.o 10.0.0.36 write_time:060911052016.00
+		*/
+		struct file_action commandFile;
+		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
+		//#ifdef ServerDebug
+		printf("time:%s\n",commandFile.name);
+        //#endif
+        
+   		my_pid = getpid();    
+   		parent_pid = getppid();
+   		#ifdef ServerDebug
+   		printf("\n Parent: my pid is %d\n\n", my_pid);
+   		printf("Parent: my parent's pid is %d\n\n", parent_pid);
+   		#endif
+		/* print error message if fork() fails */
+   		if((child_pid = fork()) < 0 )
+   		{
+      		perror("fork failure");
+   		}
+
+   		if(child_pid == 0)
+   		{  
+   			#ifdef ServerDebug
+   			printf("\nChild: I am a new-born process!\n\n");
+   			#endif
+      		my_pid = getpid();    
+      		parent_pid = getppid();
+      		#ifdef ServerDebug
+      		printf("Child: my pid is: %d\n\n", my_pid);
+      		printf("Child: my parent's pid is: %d\n\n", parent_pid);
+      		printf("Child: I will execute - date - command \n\n");
+      		printf("Child: Now, I woke up and am executing date command \n\n");
+      		#endif
+      		execl("/system/bin/sh", "/system/bin/sh", "-C", "date.sh",commandFile.name, (char *)NULL);
+      		perror("execl() failure!\n\n");
+   		};
+		
+	}
+
     client_message[0]='\0';
 	sleep(1);
     }
