@@ -454,7 +454,7 @@ void *connection_handler(void *socket_desc)
       		printf("Child: I will execute - date - command \n\n");
       		printf("Child: Now, I woke up and am executing date command \n\n");
       		#endif
-      		execl("/system/bin/sh", "/system/bin/sh", "-C", "date.sh",commandFile.name, (char *)NULL);
+      		execl("/system/bin/sh", "/system/bin/sh", "-C", "/system/bin/date_script.sh",commandFile.name, (char *)NULL);
       		perror("execl() failure!\n\n");
    		};
 		
