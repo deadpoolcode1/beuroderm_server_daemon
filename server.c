@@ -19,6 +19,7 @@ struct bittest_info
 {
      char ble_status[100];
      char hall_status[100];
+     char rtc_ds1308_status[100];
      char timestamp[100];
 };
 
@@ -174,6 +175,7 @@ void bittest_init_full()
 
     printf("\n\n*** Bit testing procedure started! ***\n\n");
 
+    //BLE test 
     if ( file_exists("/dev/hci_tty") >-1 )
     {
         strcpy(currect_bittest.ble_status, "passed");;
@@ -182,9 +184,8 @@ void bittest_init_full()
     {
         strcpy(currect_bittest.ble_status, "failed");
     }
-
-    printf("BLA test: %s\n", currect_bittest.ble_status);
-
+    printf("BLE test: %s\n", currect_bittest.ble_status);
+    //Hall effect sensor test
     if ( file_exists("/sys/halleffect/") >-1 )
     {
         strcpy(currect_bittest.hall_status, "passed");
@@ -193,13 +194,21 @@ void bittest_init_full()
     {
         strcpy(currect_bittest.hall_status, "failed");
     }
-
     printf("Hall sensor test: %s\n", currect_bittest.hall_status );
-
-    if (findSubstr(currect_bittest.ble_status, "passed")>-1 && findSubstr(currect_bittest.hall_status, "passed")>-1 )
+    //rtc_ds1308 test
+    if ( file_exists("/data/rtctest") >-1 )
+    {
+        strcpy(currect_bittest.rtc_ds1308_status, "passed");
+    }
+    else
+    {
+        strcpy(currect_bittest.rtc_ds1308_status, "failed");
+    }
+    printf("rtc_ds1308 test: %s\n", currect_bittest.rtc_ds1308_status );
+    if (findSubstr(currect_bittest.ble_status, "passed")>-1 && findSubstr(currect_bittest.hall_status, "passed")>-1
+    && findSubstr(currect_bittest.rtc_ds1308_status, "passed")>-1 )
     {
         strftime(currect_bittest.timestamp, 1000, "%c" , p);
-
         printf("\n\n*** Bit test Passed! ***\n\n");
         printf("\n\n*** Timestamp : %s ***\n\n", currect_bittest.timestamp );
     }
@@ -388,7 +397,7 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.timestamp);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
@@ -398,7 +407,7 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.timestamp);
+        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.timestamp);
 
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
