@@ -21,6 +21,7 @@ struct bittest_info
      char hall_status[100];
      char rtc_ds1308_status[100];
      char adc_status[100];
+     char expender_status[100];
      char timestamp[100];
 };
 
@@ -246,8 +247,19 @@ void bittest_init_full()
     }
     free(adcbuffer);
     printf("adc test: %s\n", currect_bittest.adc_status );
+    //gpio i2c expender test
+    if ( file_exists("/data/ledred") >-1 )
+    {
+        strcpy(currect_bittest.expender_status, "passed");
+    }
+    else
+    {
+        strcpy(currect_bittest.expender_status, "failed");
+    }
+    printf("expender_status test: %s\n", currect_bittest.expender_status );
     if (findSubstr(currect_bittest.ble_status, "passed")>-1 && findSubstr(currect_bittest.hall_status, "passed")>-1
-    && findSubstr(currect_bittest.rtc_ds1308_status, "passed")>-1&& findSubstr(currect_bittest.adc_status, "passed")>-1 )
+    && findSubstr(currect_bittest.rtc_ds1308_status, "passed")>-1&& findSubstr(currect_bittest.adc_status, "passed")>-1 
+    && findSubstr(currect_bittest.expender_status, "passed")>-1)
     {
         strftime(currect_bittest.timestamp, 1000, "%c" , p);
         printf("\n\n*** Bit test Passed! ***\n\n");
@@ -438,7 +450,7 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.timestamp);
+            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"gpio expender \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.expender_status, currect_bittest.timestamp);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
@@ -448,8 +460,7 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.timestamp);
-
+        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"gpio expender \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.expender_status, currect_bittest.timestamp);
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
         
