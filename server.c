@@ -20,6 +20,7 @@ struct bittest_info
      char ble_status[100];
      char hall_status[100];
      char rtc_ds1308_status[100];
+     char adc_status[100];
      char timestamp[100];
 };
 
@@ -91,6 +92,34 @@ int open_file(char *filename)
     }
 	return fd;
 }
+
+
+char* read_file_data(char *filename,char *buffer, size_t buffer_size)
+{
+    // open the file for reading
+    FILE *file = fopen(filename, "r");
+    // make sure the file opened properly
+    if(NULL == file)
+    {
+        fprintf(stderr, "Cannot open file: %s\n", filename);
+        return "";
+    }
+
+    // read each line and print it to the screen
+    int line_number = 0;
+    while(-1 != getline(&buffer, &buffer_size, file))
+    {
+        printf("%d: %s", ++line_number, buffer);
+    }
+    fflush(stdout);
+
+    // make sure we close the filewhen we're
+    // finished
+    fclose(file);
+
+    return buffer;
+}
+
 
 int file_exists(char *filename)
 {
@@ -205,8 +234,20 @@ void bittest_init_full()
         strcpy(currect_bittest.rtc_ds1308_status, "failed");
     }
     printf("rtc_ds1308 test: %s\n", currect_bittest.rtc_ds1308_status );
+    //adc test
+    char *adcbuffer = malloc(10 * sizeof(char));
+    if ( atoi(read_file_data("/data/adc0",adcbuffer,10)) >0 )
+    {
+        strcpy(currect_bittest.adc_status, "passed");
+    }
+    else
+    {
+        strcpy(currect_bittest.adc_status, "failed");
+    }
+    free(adcbuffer);
+    printf("adc test: %s\n", currect_bittest.adc_status );
     if (findSubstr(currect_bittest.ble_status, "passed")>-1 && findSubstr(currect_bittest.hall_status, "passed")>-1
-    && findSubstr(currect_bittest.rtc_ds1308_status, "passed")>-1 )
+    && findSubstr(currect_bittest.rtc_ds1308_status, "passed")>-1&& findSubstr(currect_bittest.adc_status, "passed")>-1 )
     {
         strftime(currect_bittest.timestamp, 1000, "%c" , p);
         printf("\n\n*** Bit test Passed! ***\n\n");
@@ -397,7 +438,7 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.timestamp);
+            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.timestamp);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
@@ -407,7 +448,7 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.timestamp);
+        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.timestamp);
 
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
