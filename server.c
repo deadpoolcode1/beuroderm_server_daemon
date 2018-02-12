@@ -15,15 +15,32 @@
 //#undef ServerDebug
 #endif
 
+enum BITTESTS            /* Defines bit test ENUM   */  
+{  
+    BIT_BLE = 0,          
+    BIT_HALL,    
+    BIT_RTC,         
+    BIT_ADC,  
+    BIT_EXPENDER,
+    BIT_TIMESTAMP
+} ;
+
+enum BITRESULT            /* Defines results  */  
+{  
+    PASSED = 0, 
+    FAILED      
+} ;
+
 struct bittest_info
 {
-     char ble_status[100];
-     char hall_status[100];
-     char rtc_ds1308_status[100];
-     char adc_status[100];
-     char expender_status[100];
-     char timestamp[100];
+     uint8_t ble_status;
+     uint8_t hall_status;
+     uint8_t rtc_status;
+     uint8_t adc_status;
+     uint8_t expender_status;
+     char timestamp [100];
 };
+
 
 
 /*
@@ -135,7 +152,7 @@ int file_exists(char *filename)
     else
     {
         #ifdef ServerDebug
-            printf(" - file %s not exits\n", filename);;
+            printf(" - file %s not exits\n", filename);
         #endif
     }
 
@@ -208,58 +225,58 @@ void bittest_init_full()
     //BLE test 
     if ( file_exists("/dev/hci_tty") >-1 )
     {
-        strcpy(currect_bittest.ble_status, "passed");;
+        currect_bittest.ble_status=PASSED;
     }
     else
     {
-        strcpy(currect_bittest.ble_status, "failed");
+        currect_bittest.ble_status=FAILED;
     }
-    printf("BLE test: %s\n", currect_bittest.ble_status);
+    printf("BLE test: %d\n", currect_bittest.ble_status);
     //Hall effect sensor test
     if ( file_exists("/sys/halleffect/") >-1 )
     {
-        strcpy(currect_bittest.hall_status, "passed");
+        currect_bittest.hall_status=PASSED;
     }
     else
     {
-        strcpy(currect_bittest.hall_status, "failed");
+        currect_bittest.hall_status=FAILED;
     }
-    printf("Hall sensor test: %s\n", currect_bittest.hall_status );
-    //rtc_ds1308 test
+    printf("Hall sensor test: %d\n", currect_bittest.hall_status );
+    //rtc test
     if ( file_exists("/data/rtctest") >-1 )
     {
-        strcpy(currect_bittest.rtc_ds1308_status, "passed");
+        currect_bittest.rtc_status=PASSED;
     }
     else
     {
-        strcpy(currect_bittest.rtc_ds1308_status, "failed");
+        currect_bittest.rtc_status=FAILED;
     }
-    printf("rtc_ds1308 test: %s\n", currect_bittest.rtc_ds1308_status );
+    printf("rtc test: %d\n", currect_bittest.rtc_status );
     //adc test
     char *adcbuffer = malloc(10 * sizeof(char));
     if ( atoi(read_file_data("/data/adc0",adcbuffer,10)) >0 )
     {
-        strcpy(currect_bittest.adc_status, "passed");
+        currect_bittest.adc_status=PASSED;
     }
     else
     {
-        strcpy(currect_bittest.adc_status, "failed");
+        currect_bittest.adc_status=FAILED;
     }
     free(adcbuffer);
-    printf("adc test: %s\n", currect_bittest.adc_status );
+    printf("adc test: %d\n", currect_bittest.adc_status );
     //gpio i2c expender test
     if ( file_exists("/data/ledred") >-1 )
     {
-        strcpy(currect_bittest.expender_status, "passed");
+        currect_bittest.expender_status=PASSED;
     }
     else
     {
-        strcpy(currect_bittest.expender_status, "failed");
+        currect_bittest.expender_status=FAILED;
     }
-    printf("expender_status test: %s\n", currect_bittest.expender_status );
-    if (findSubstr(currect_bittest.ble_status, "passed")>-1 && findSubstr(currect_bittest.hall_status, "passed")>-1
-    && findSubstr(currect_bittest.rtc_ds1308_status, "passed")>-1&& findSubstr(currect_bittest.adc_status, "passed")>-1 
-    && findSubstr(currect_bittest.expender_status, "passed")>-1)
+    printf("expender_status test: %d\n", currect_bittest.expender_status );
+    if (currect_bittest.ble_status==PASSED && currect_bittest.hall_status==PASSED &&
+    currect_bittest.rtc_status==PASSED && currect_bittest.adc_status==PASSED 
+    && currect_bittest.expender_status==PASSED)
     {
         strftime(currect_bittest.timestamp, 1000, "%c" , p);
         printf("\n\n*** Bit test Passed! ***\n\n");
@@ -450,7 +467,8 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"gpio expender \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.expender_status, currect_bittest.timestamp);
+        	sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status, BIT_TIMESTAMP,currect_bittest.timestamp);
+            printf("%s\n", returnMsg);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
@@ -460,7 +478,7 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " {\"ble\":\"%s\",\"hall sensor\":\"%s\",\"rtc \":\"%s\",\"adc \":\"%s\",\"gpio expender \":\"%s\",\"time\":\"%s\"} \n", currect_bittest.ble_status , currect_bittest.hall_status, currect_bittest.rtc_ds1308_status, currect_bittest.adc_status, currect_bittest.expender_status, currect_bittest.timestamp);
+        sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status, BIT_TIMESTAMP,currect_bittest.timestamp);
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
         
