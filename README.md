@@ -69,3 +69,9 @@ in order to support unittest a unittest.c + unittest_def.json file exist
 
 per specific hardware the unittest_def.json is modified.
 
+## Sprint 20
+
+* twikoSWTWIKO-803
+modify bit for enumeration
+* twikoSWTWIKO-739
+Define and implement BIT for FS
