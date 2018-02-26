@@ -538,6 +538,49 @@ void *connection_handler(void *socket_desc)
    		};
 		
 	}
+	else if(findSubstr(client_message, "write_sleep_time")>-1)
+	{
+		pid_t my_pid, parent_pid, child_pid;
+        fflush(stdin);
+		/*action is writing sleep time
+		example: ./send.o 10.0.0.36 write_sleep_time:30000
+		*/
+		struct file_action commandFile;
+		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
+		//#ifdef ServerDebug
+		printf("sleep time:%s\n",commandFile.name);
+        //#endif
+        
+   		my_pid = getpid();    
+   		parent_pid = getppid();
+   		#ifdef ServerDebug
+   		printf("\n Parent: my pid is %d\n\n", my_pid);
+   		printf("Parent: my parent's pid is %d\n\n", parent_pid);
+   		#endif
+		/* print error message if fork() fails */
+   		if((child_pid = fork()) < 0 )
+   		{
+      		perror("fork failure");
+   		}
+
+   		if(child_pid == 0)
+   		{  
+   			#ifdef ServerDebug
+   			printf("\nChild: I am a new-born process!\n\n");
+   			#endif
+      		my_pid = getpid();    
+      		parent_pid = getppid();
+      		#ifdef ServerDebug
+      		printf("Child: my pid is: %d\n\n", my_pid);
+      		printf("Child: my parent's pid is: %d\n\n", parent_pid);
+      		printf("Child: I will execute - sleep time - command \n\n");
+      		printf("Child: Now, I woke up and am executing sleep time command \n\n");
+      		#endif
+      		execl("/system/bin/sh", "/system/bin/sh", "-C", "/system/bin/sleep_time_script.sh",commandFile.name, (char *)NULL);
+      		perror("execl() failure!\n\n");
+   		};
+		
+	}
 
     client_message[0]='\0';
 	sleep(1);
