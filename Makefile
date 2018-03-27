@@ -11,7 +11,7 @@ server: server.c
 	$(CCARM) $(CFLAGS)  -static -o server.o server.c i2c.c -lpthread
 
 send: send.c
-	$(CC) $(CFLAGS)  -static -o send.o send.c
+	$(CCARM) $(CFLAGS)  -static -o send.o send.c
 
 ## for Linux:
 
