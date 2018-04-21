@@ -328,24 +328,24 @@ int main(int argc , char *argv[])
     c = sizeof(struct sockaddr_in);
     while( (new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c)) )
     {
-        puts("Connection accepted");
+        puts("server Connection accepted");
         //Reply to the client
         pthread_t sniffer_thread;
         new_sock = malloc(1);
         *new_sock = new_socket;
         if( pthread_create( &sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0)
         {
-            perror("could not create thread");
+            perror("server could not create thread");
             return 1;
         }
         //Now join the thread , so that we dont terminate before the thread
-        //pthread_join( sniffer_thread , NULL);
-        puts("Handler assigned");
+        pthread_join( sniffer_thread , NULL);
+        puts("server Handler assigned");
     }
      
     if (new_socket<0)
     {
-        perror("accept failed");
+        perror("server accept failed");
         return 1;
     }
      
@@ -588,15 +588,16 @@ void *connection_handler(void *socket_desc)
      
     if(read_size == 0)
     {
-        puts("Client disconnected");
+        puts("server Client disconnected");
         fflush(stdout);
     }
     else if(read_size == -1)
     {
-        perror("recv failed");
-    }
-      
+        perror("server recv failed");
+    }    
     //Free the socket pointer
     free(socket_desc);
+    close(sock);
+
     return 0;
 }
