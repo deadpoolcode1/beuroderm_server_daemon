@@ -69,6 +69,11 @@ in order to support unittest a unittest.c + unittest_def.json file exist
 
 per specific hardware the unittest_def.json is modified.
 
+## Sprint 25
+
+* TWIKO-1268
+BIT Test Failed popup error
+
 ## Sprint 20
 
 * twikoSWTWIKO-803
