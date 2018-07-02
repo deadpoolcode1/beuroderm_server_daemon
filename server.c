@@ -22,7 +22,8 @@ enum BITTESTS            /* Defines bit test ENUM   */
     BIT_RTC,         
     BIT_ADC,  
     BIT_EXPENDER,
-    BIT_TIMESTAMP
+    BIT_TIMESTAMP,
+    BIT_CRC
 } ;
 
 enum BITRESULT            /* Defines results  */  
@@ -38,6 +39,7 @@ struct bittest_info
      uint8_t rtc_status;
      uint8_t adc_status;
      uint8_t expender_status;
+     uint8_t crc_status;
      char timestamp [100];
 };
 
@@ -211,6 +213,11 @@ uint8_t read_i2c(char *string_command)
     return data;
 } 
 
+int crc_passed(char * filename)
+{
+	return 0;
+}
+
 //fucnction that runs bittest full test
 void bittest_init_full()
 {
@@ -273,10 +280,18 @@ void bittest_init_full()
     {
         currect_bittest.expender_status=FAILED;
     }
+    if ( crc_passed("/data/config.file") == 0)
+    {
+        currect_bittest.crc_status=PASSED;
+    }
+    else
+    {
+        currect_bittest.crc_status=FAILED;
+    }
     printf("expender_status test: %d\n", currect_bittest.expender_status );
     if (currect_bittest.ble_status==PASSED && currect_bittest.hall_status==PASSED &&
     currect_bittest.rtc_status==PASSED && currect_bittest.adc_status==PASSED 
-    && currect_bittest.expender_status==PASSED)
+    && currect_bittest.expender_status==PASSED && currect_bittest.crc_status==PASSED)
     {
         strftime(currect_bittest.timestamp, 1000, "%c" , p);
         printf("\n\n*** Bit test Passed! ***\n\n");
@@ -467,7 +482,7 @@ void *connection_handler(void *socket_desc)
         if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-        	sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status, BIT_TIMESTAMP,currect_bittest.timestamp);
+        	sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
             printf("%s\n", returnMsg);
             write(sock , returnMsg , strlen(returnMsg));
         }
@@ -478,7 +493,7 @@ void *connection_handler(void *socket_desc)
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d \":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status, BIT_TIMESTAMP,currect_bittest.timestamp);
+        sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
         
