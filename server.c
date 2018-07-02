@@ -1,11 +1,13 @@
-#include<stdio.h>
-#include<string.h>    //strlen
-#include<stdlib.h>    //strlen
-#include<sys/socket.h>
-#include<arpa/inet.h> //inet_addr
-#include<unistd.h>    //write
-#include<signal.h>
-#include<pthread.h> //for threading , link with lpthread
+#include <stdio.h>
+#include <string.h>    //strlen
+#include <stdlib.h>    //strlen
+#include <sys/socket.h>
+#include <arpa/inet.h> //inet_addr
+#include <unistd.h>    //write
+#include <signal.h>
+#include <pthread.h> //for threading , link with lpthread
+#include <ctype.h>
+
 #include <fcntl.h>
 #include <err.h>
 #include <errno.h>
@@ -213,9 +215,90 @@ uint8_t read_i2c(char *string_command)
     return data;
 } 
 
+
+unsigned short crc16(const unsigned char* data_p)
+{
+    unsigned char x;
+    unsigned short crc = 0xFFFF;
+    unsigned short length;
+    //length=strlen(data_p):
+    while (length--){
+        x = crc >> 8 ^ *data_p++;
+        x ^= x>>4;
+        crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
+    }
+    return crc;
+}
+
 int crc_passed(char * filename)
 {
-	return 0;
+	size_t buffer_size = 64;
+	char *buffer;
+	char full_buffer[1024];
+    unsigned char x;
+    unsigned short crc = 0xFFFF;
+    unsigned short length;
+    char *data_p = full_buffer;
+    long val=0;
+    //length=strlen(data_p)	
+    // open the file for reading
+    FILE *file = fopen(filename, "r");
+    // make sure the file opened properly
+    if(NULL == file)
+    {
+        fprintf(stderr, "Cannot open file: %s\n", filename);
+        return -1;
+    }
+    //assign memory for buffer
+    buffer = (char *)malloc(buffer_size * sizeof(char));
+    if( buffer == NULL)
+    {
+        perror("Unable to allocate buffer");
+        exit(1);
+    }
+    // read each line and print it to the screen
+    int line_number = 0;
+    full_buffer[0]='\0';
+    while(-1 != getline(&buffer, &buffer_size, file))
+    {
+        printf("%d: %s", ++line_number, buffer);
+        char *pch = strstr(buffer, "crc");
+        if(!pch) // crc line does not get included in crc calculation
+        	strncat(full_buffer,buffer,strlen(buffer)-1);
+        else
+        {
+        	char *p = buffer;
+			while (*p) 
+			{ // While there are more characters to process...
+    			if (isdigit(*p)) 
+    			{ // Upon finding a digit, ...
+        			val = strtol(p, &p, 10); // Read a number, ...
+        			printf("\r\nCRC:%ld\n", val); // and print it.
+   				 } 
+   				 else 
+        			p++;
+    		}
+        }
+    }
+    fflush(stdout);
+
+    // make sure we close the file when we're
+    // finished
+    fclose(file);
+    //calculate CRC
+    length=strlen(full_buffer);
+    printf("\r\nstring is :%s\r\n",full_buffer);
+        printf("\r\nlength is :%d\r\n",length);
+
+    while (length--){
+        x = crc >> 8 ^ *data_p++;
+        x ^= x>>4;
+        crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
+    }
+    printf ("CRC result: %d\r\n",crc);
+    if (crc==val)
+    	return 0;
+    else return -1;
 }
 
 //fucnction that runs bittest full test
@@ -280,6 +363,7 @@ void bittest_init_full()
     {
         currect_bittest.expender_status=FAILED;
     }
+    printf("expender_status test: %d\n", currect_bittest.expender_status );
     if ( crc_passed("/data/config.file") == 0)
     {
         currect_bittest.crc_status=PASSED;
@@ -288,7 +372,7 @@ void bittest_init_full()
     {
         currect_bittest.crc_status=FAILED;
     }
-    printf("expender_status test: %d\n", currect_bittest.expender_status );
+    printf("crc_status test: %d\n", currect_bittest.crc_status );
     if (currect_bittest.ble_status==PASSED && currect_bittest.hall_status==PASSED &&
     currect_bittest.rtc_status==PASSED && currect_bittest.adc_status==PASSED 
     && currect_bittest.expender_status==PASSED && currect_bittest.crc_status==PASSED)
