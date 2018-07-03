@@ -216,20 +216,6 @@ uint8_t read_i2c(char *string_command)
 } 
 
 
-unsigned short crc16(const unsigned char* data_p)
-{
-    unsigned char x;
-    unsigned short crc = 0xFFFF;
-    unsigned short length;
-    //length=strlen(data_p):
-    while (length--){
-        x = crc >> 8 ^ *data_p++;
-        x ^= x>>4;
-        crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
-    }
-    return crc;
-}
-
 int crc_passed(char * filename)
 {
 	size_t buffer_size = 64;
