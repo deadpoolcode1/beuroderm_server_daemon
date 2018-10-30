@@ -350,7 +350,7 @@ void bittest_init_full()
         currect_bittest.expender_status=FAILED;
     }
     printf("expender_status test: %d\n", currect_bittest.expender_status );
-    if ( crc_passed("/data/config.file") == 0)
+    if ( crc_passed("/system/bin/config.file") == 0)
     {
         currect_bittest.crc_status=PASSED;
     }
@@ -668,7 +668,7 @@ void *connection_handler(void *socket_desc)
 	}
 
     client_message[0]='\0';
-	sleep(1);
+	//sleep(1);
     }
      
     if(read_size == 0)
