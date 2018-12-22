@@ -1,7 +1,22 @@
-#include<stdio.h>
-#include<string.h>    //strlen
-#include<sys/socket.h>
-#include<arpa/inet.h> //inet_addr
+#include <stdio.h>
+#include <string.h>    //strlen
+#include <sys/socket.h>
+#include <arpa/inet.h> //inet_addr
+
+#include <stdio.h>
+#include <string.h>    //strlen
+#include <stdlib.h>    //strlen
+#include <sys/socket.h>
+#include <arpa/inet.h> //inet_addr
+#include <unistd.h>    //write
+#include <signal.h>
+#include <pthread.h> //for threading , link with lpthread
+#include <ctype.h>
+
+#include <fcntl.h>
+#include <err.h>
+#include <errno.h>
+
 int main(int argc , char *argv[])
 {
     int socket_desc;
