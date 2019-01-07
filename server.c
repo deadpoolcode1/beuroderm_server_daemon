@@ -14,19 +14,21 @@
 #include "i2c.h"
 #define ServerDebug 1
 #ifdef ServerDebug
-//#undef ServerDebug
+#undef ServerDebug
 #endif
+#define CONFIG_FILE_PATH "/system/bin/config.file"
+#define BIT_I2C "BIT_I2C"
+#define BIT_BLE "BIT_BLE"
+#define BIT_BATTERY "BIT_BATTERY"
+#define BIT_RTC "BIT_RTC"
+#define BIT_DISPLAY "BIT_DISPLAY"
+#define BIT_GPIOEXPENDER "BIT_GPIOEXPENDER"
+#define BIT_FUELGAUGE "BIT_FUELGAUGE"
+#define BIT_CRC "BIT_CRC"
+#define BIT_TIMESTAMP "BIT_TIMESTAMP"
 
-enum BITTESTS            /* Defines bit test ENUM   */  
-{  
-    BIT_BLE = 0,          
-    BIT_HALL,    
-    BIT_RTC,         
-    BIT_ADC,  
-    BIT_EXPENDER,
-    BIT_TIMESTAMP,
-    BIT_CRC
-} ;
+
+
 
 enum BITRESULT            /* Defines results  */  
 {  
@@ -36,13 +38,15 @@ enum BITRESULT            /* Defines results  */
 
 struct bittest_info
 {
-     uint8_t ble_status;
-     uint8_t hall_status;
-     uint8_t rtc_status;
-     uint8_t adc_status;
-     uint8_t expender_status;
-     uint8_t crc_status;
-     char timestamp [100];
+    uint8_t i2c_status;
+    uint8_t ble_status;
+    uint8_t battery_status;
+    uint8_t rtc_status;
+    uint8_t display_status;
+    uint8_t gpioexpender_status;
+    uint8_t fuelgauge_status;
+    uint8_t crc_status;
+    char timestamp [100];
 };
 
 
@@ -128,10 +132,8 @@ char* read_file_data(char *filename,char *buffer, size_t buffer_size)
     }
 
     // read each line and print it to the screen
-    int line_number = 0;
     while(-1 != getline(&buffer, &buffer_size, file))
     {
-        printf("%d: %s", ++line_number, buffer);
     }
     fflush(stdout);
 
@@ -242,12 +244,9 @@ int crc_passed(char * filename)
         perror("Unable to allocate buffer");
         exit(1);
     }
-    // read each line and print it to the screen
-    int line_number = 0;
     full_buffer[0]='\0';
     while(-1 != getline(&buffer, &buffer_size, file))
     {
-        printf("%d: %s", ++line_number, buffer);
         char *pch = strstr(buffer, "crc");
         if(!pch) // crc line does not get included in crc calculation
         	strncat(full_buffer,buffer,strlen(buffer)-1);
@@ -273,9 +272,6 @@ int crc_passed(char * filename)
     fclose(file);
     //calculate CRC
     length=strlen(full_buffer);
-    printf("\r\nstring is :%s\r\n",full_buffer);
-        printf("\r\nlength is :%d\r\n",length);
-
     while (length--){
         x = crc >> 8 ^ *data_p++;
         x ^= x>>4;
@@ -295,73 +291,49 @@ void bittest_init_full()
 
     time_t t = time(NULL);
     struct tm * p = localtime(&t);
+    currect_bittest.i2c_status=FAILED;
+    currect_bittest.ble_status=FAILED;
+    currect_bittest.battery_status=FAILED;
+    currect_bittest.rtc_status=FAILED;
+    currect_bittest.display_status=FAILED;
+    currect_bittest.gpioexpender_status=FAILED;
+    currect_bittest.fuelgauge_status=FAILED;
+    currect_bittest.crc_status=FAILED;
 
     printf("\n\n*** Bit testing procedure started! ***\n\n");
-
     //BLE test 
-    if ( file_exists("/dev/hci_tty") >-1 )
-    {
-        currect_bittest.ble_status=PASSED;
-    }
-    else
-    {
-        currect_bittest.ble_status=FAILED;
-    }
+    if ( file_exists("/dev/hci_tty") >-1 ) currect_bittest.ble_status=PASSED;
     printf("BLE test: %d\n", currect_bittest.ble_status);
-    //Hall effect sensor test
-    if ( file_exists("/sys/halleffect/") >-1 )
-    {
-        currect_bittest.hall_status=PASSED;
-    }
-    else
-    {
-        currect_bittest.hall_status=FAILED;
-    }
-    printf("Hall sensor test: %d\n", currect_bittest.hall_status );
+    //battery test
+    char *batterybuffer = malloc(10 * sizeof(char));
+    if ( atoi(read_file_data("/sys/class/power_supply/battery/present",batterybuffer,10)) >0 ) currect_bittest.battery_status=PASSED;
+    free(batterybuffer);
+    printf("battery test: %d\n", currect_bittest.battery_status );
     //rtc test
-    if ( file_exists("/data/rtctest") >-1 )
-    {
-        currect_bittest.rtc_status=PASSED;
-    }
-    else
-    {
-        currect_bittest.rtc_status=FAILED;
-    }
+    if ( file_exists("/data/rtctest") >-1 )currect_bittest.rtc_status=PASSED;
     printf("rtc test: %d\n", currect_bittest.rtc_status );
-    //adc test
-    char *adcbuffer = malloc(10 * sizeof(char));
-    if ( atoi(read_file_data("/data/adc0",adcbuffer,10)) >0 )
-    {
-        currect_bittest.adc_status=PASSED;
-    }
-    else
-    {
-        currect_bittest.adc_status=FAILED;
-    }
-    free(adcbuffer);
-    printf("adc test: %d\n", currect_bittest.adc_status );
+    //display test
+    currect_bittest.display_status=PASSED;
+    printf("display test: %d\n", currect_bittest.display_status );
     //gpio i2c expender test
-    if ( file_exists("/data/ledred") >-1 )
-    {
-        currect_bittest.expender_status=PASSED;
-    }
-    else
-    {
-        currect_bittest.expender_status=FAILED;
-    }
-    printf("expender_status test: %d\n", currect_bittest.expender_status );
-    if ( crc_passed("/system/bin/config.file") == 0)
-    {
-        currect_bittest.crc_status=PASSED;
-    }
-    else
-    {
-        currect_bittest.crc_status=FAILED;
-    }
+    if ( file_exists("/data/ledred") >-1 ) currect_bittest.gpioexpender_status=PASSED;
+    printf("gpioexpender_status test: %d\n", currect_bittest.gpioexpender_status );
+    //fuelgauge test
+    char *fuelgaugebuffer = malloc(10 * sizeof(char));
+    if ( atoi(read_file_data("/sys/class/power_supply/battery/voltage_now",fuelgaugebuffer,10)) >0 ) currect_bittest.fuelgauge_status=PASSED;
+    free(fuelgaugebuffer);
+    printf("fuelgauge test: %d\n", currect_bittest.fuelgauge_status );
+    //CRC test
+    if ( crc_passed(CONFIG_FILE_PATH) == 0) currect_bittest.crc_status=PASSED;
     printf("crc_status test: %d\n", currect_bittest.crc_status );
-    if (currect_bittest.ble_status==PASSED && currect_bittest.hall_status==PASSED &&
-    currect_bittest.rtc_status==PASSED && currect_bittest.adc_status==PASSED 
-    && currect_bittest.expender_status==PASSED && currect_bittest.crc_status==PASSED)
+    //I2C test
+    if (currect_bittest.gpioexpender_status==PASSED||currect_bittest.fuelgauge_status==PASSED||currect_bittest.battery_status==PASSED) currect_bittest.i2c_status=PASSED;
+    printf("I2C test: %d\n", currect_bittest.i2c_status );
+
+
+    if (currect_bittest.ble_status==PASSED  &&
+    currect_bittest.rtc_status==PASSED  
+    && currect_bittest.gpioexpender_status==PASSED && currect_bittest.crc_status==PASSED)
     {
         strftime(currect_bittest.timestamp, 1000, "%c" , p);
         printf("\n\n*** Bit test Passed! ***\n\n");
@@ -382,7 +354,6 @@ int main(int argc , char *argv[])
 
     int socket_desc , new_socket , c , *new_sock;
     struct sockaddr_in server , client;
-
     bittest_init_full();
      
     //Create socket
@@ -449,7 +420,6 @@ void *connection_handler(void *socket_desc)
     char returnMsg[100];
     int fd;
     int result;
-
     char error_msg[100];
 
     struct file_action
@@ -549,21 +519,21 @@ void *connection_handler(void *socket_desc)
         printf("bittest init type:%s\n",type);
         #endif
         printf("bittest init type:%s\n",type);
-        if(findSubstr(client_message, "full")>-1)
+        //if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-        	sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
+            sprintf(returnMsg, " {\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_RTC,currect_bittest.rtc_status, BIT_GPIOEXPENDER,currect_bittest.gpioexpender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
             printf("%s\n", returnMsg);
             write(sock , returnMsg , strlen(returnMsg));
         }
     }
-    else if(findSubstr(client_message, "bittest_read")>-1)
+    else if(findSubstr(client_message, "read_bit:bittest")>-1)
     {
         /*action is bittest_read
         */
         returnMsg[0] = '\0';
 
-        sprintf(returnMsg, " {\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%d\",\"%d\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_HALL,currect_bittest.hall_status, BIT_RTC,currect_bittest.rtc_status, BIT_ADC,currect_bittest.adc_status, BIT_EXPENDER,currect_bittest.expender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
+        sprintf(returnMsg, " {\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_RTC,currect_bittest.rtc_status, BIT_GPIOEXPENDER,currect_bittest.gpioexpender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
         send(sock , returnMsg , strlen(returnMsg),0);
         printf("Bit test status sent\n");
         
