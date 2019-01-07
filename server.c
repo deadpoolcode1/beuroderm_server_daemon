@@ -428,6 +428,9 @@ void *connection_handler(void *socket_desc)
          char value [100];
     };
 
+    char buffer_read_file[150];
+    size_t size_of_array_read_file = sizeof(buffer_read_file);
+
     client_message[0]='\0';
     //Receive a message from client
     while( (read_size = recv(sock , client_message , 2000 , 0)) > 0 )
@@ -636,6 +639,31 @@ void *connection_handler(void *socket_desc)
    		};
 		
 	}
+    /*
+    Response: {
+   "build_date": "millis",
+   "fw_version": "string_version",
+   "device_name": "string_name"
+}
+    */
+    else if(findSubstr(client_message, "read_command:info")>-1)
+    {
+        /*action is bittest_read
+        */
+        returnMsg[0] = '\0';
+        strcat (returnMsg,"{\"build_date\":\"");
+        strcat (returnMsg,read_file_data("/data/ro_bootimage_build_date_utc",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\",");
+        strcat (returnMsg,"\"fw_version\":\"");
+        strcat (returnMsg,read_file_data("/data/fs_bsp_version",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\",");
+        strcat (returnMsg,"\"device_name\":\"");
+        strcat (returnMsg,read_file_data("/data/ro_product_device",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\"}");
+        //sprintf(returnMs
+        printf("%s\n", returnMsg);
+        write(sock , returnMsg , strlen(returnMsg));
+    }
 
     client_message[0]='\0';
 	//sleep(1);
