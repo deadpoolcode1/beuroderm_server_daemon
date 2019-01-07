@@ -505,7 +505,7 @@ void *connection_handler(void *socket_desc)
 		sprintf(commandFile.value, "%04x\n", result);
     	write(sock , commandFile.value , strlen(commandFile.value));
     }
-    else if(findSubstr(client_message, "bittest_init")>-1)
+    else if(findSubstr(client_message, "write_bit:bittest")>-1)
     {
         /*action is bittest_init
         */
