@@ -639,17 +639,10 @@ void *connection_handler(void *socket_desc)
    		};
 		
 	}
-    /*
-    Response: {
-   "build_date": "millis",
-   "fw_version": "string_version",
-   "device_name": "string_name"
-}
-    */
+
     else if(findSubstr(client_message, "read_command:info")>-1)
     {
-        /*action is bittest_read
-        */
+   // Response: {"build_date": "millis","fw_version": "string_version","device_name": "string_name"}
         returnMsg[0] = '\0';
         strcat (returnMsg,"{\"build_date\":\"");
         strcat (returnMsg,read_file_data("/data/ro_bootimage_build_date_utc",buffer_read_file,size_of_array_read_file));
@@ -659,6 +652,39 @@ void *connection_handler(void *socket_desc)
         strcat (returnMsg,"\",");
         strcat (returnMsg,"\"device_name\":\"");
         strcat (returnMsg,read_file_data("/data/ro_product_device",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\"}");
+        //sprintf(returnMs
+        printf("%s\n", returnMsg);
+        write(sock , returnMsg , strlen(returnMsg));
+    }
+
+
+    else if(findSubstr(client_message, "read_command:temp_zones")>-1)
+    {
+        //Response: {"temp_cpu": "temp","temp_wc": "temp"}
+        returnMsg[0] = '\0';
+        strcat (returnMsg,"{\"temp_cpu\":\"");
+        strcat (returnMsg,read_file_data("/sys/class/thermal/thermal_zone0/temp",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\",");
+        strcat (returnMsg,"\"temp_wc\":\"");
+        strcat (returnMsg,read_file_data("/sys/class/thermal/thermal_zone0/temp",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\"}");
+        //sprintf(returnMs
+        printf("%s\n", returnMsg);
+        write(sock , returnMsg , strlen(returnMsg));
+    }
+    else if(findSubstr(client_message, "read_command:hw_info")>-1)
+    {
+        //Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
+        returnMsg[0] = '\0';
+        strcat (returnMsg,"{\"hall_status\":\"");
+        strcat (returnMsg,read_file_data("/data/hall_detect",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\",");
+        strcat (returnMsg,"\"battery_status_charging\":\"");
+        strcat (returnMsg,read_file_data("/sys/class/power_supply/battery/charge_now",buffer_read_file,size_of_array_read_file));
+        strcat (returnMsg,"\",");
+        strcat (returnMsg,"\"w_charger_state\":\"");
+        strcat (returnMsg,read_file_data("/data/hall_detect",buffer_read_file,size_of_array_read_file));
         strcat (returnMsg,"\"}");
         //sprintf(returnMs
         printf("%s\n", returnMsg);
