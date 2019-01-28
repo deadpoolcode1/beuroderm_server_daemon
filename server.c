@@ -445,9 +445,6 @@ void *connection_handler(void *socket_desc)
     char read1[100];
     char read2[100];
     char read3[100];
-    char read4[100];
-    char read5[100];
-    char read6[100];
 
     struct file_action
     {
@@ -686,31 +683,22 @@ void *connection_handler(void *socket_desc)
     {
         //Response: {"temp_cpu": "temp","temp_wc": "temp"}
         returnMsg[0] = '\0';
-        strcat (returnMsg,"{\"temp_cpu\":\"");
-        strcat (returnMsg,read_file_data("/sys/class/thermal/thermal_zone0/temp",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\",");
-        strcat (returnMsg,"\"temp_wc\":\"");
-        strcat (returnMsg,read_file_data("/sys/class/thermal/thermal_zone0/temp",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\"}");
-        //sprintf(returnMs
-        printf("%s\n", returnMsg);
+        read_file_data_no_space("/sys/class/thermal/thermal_zone0/temp",read1,size_of_array_read_file);
+        read_file_data_no_space("/sys/class/thermal/thermal_zone0/temp",read2,size_of_array_read_file);
+		sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\"} \n", "temp_cpu",read1
+        ,"temp_wc",read2);
         write(sock , returnMsg , strlen(returnMsg));
     }
     else if(findSubstr(client_message, "read_command:hw_info")>-1)
     {
         //Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
         returnMsg[0] = '\0';
-        strcat (returnMsg,"{\"hall_status\":\"");
-        strcat (returnMsg,read_file_data("/data/hall_detect",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\",");
-        strcat (returnMsg,"\"battery_status_charging\":\"");
-        strcat (returnMsg,read_file_data("/sys/class/power_supply/battery/charge_now",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\",");
-        strcat (returnMsg,"\"w_charger_state\":\"");
-        strcat (returnMsg,read_file_data("/data/hall_detect",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\"}");
-        //sprintf(returnMs
-        printf("%s\n", returnMsg);
+        read_file_data_no_space("/data/hall_detect",read1,size_of_array_read_file);
+        read_file_data_no_space("/sys/class/power_supply/battery/charge_now",read2,size_of_array_read_file);
+        read_file_data_no_space("/data/hall_detect",read3,size_of_array_read_file);
+        sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s,\"%s\":\"%s\"} \n", "hall_status",read1
+        ,"battery_status_charging",read2,
+        "w_charger_state",read3);
         write(sock , returnMsg , strlen(returnMsg));
     }
 
