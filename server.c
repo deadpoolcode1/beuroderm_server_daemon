@@ -120,6 +120,17 @@ int open_file(char *filename)
 }
 
 
+char * trim(char * s) {
+    int l = strlen(s);
+
+    while(isspace(s[l - 1])) --l;
+    while(* s && isspace(* s)) ++s, --l;
+
+    return strndup(s, l);
+}
+
+
+
 char* read_file_data(char *filename,char *buffer, size_t buffer_size)
 {
     // open the file for reading
@@ -142,6 +153,16 @@ char* read_file_data(char *filename,char *buffer, size_t buffer_size)
     fclose(file);
 
     return buffer;
+}
+
+char* read_file_data_no_space(char *filename,char *buffer, size_t buffer_size)
+{
+	char *pos;
+	read_file_data(filename,buffer, buffer_size);
+	trim(buffer);
+	if ((pos=strchr(buffer, '\n')) != NULL)
+    	*pos = '\0';
+	return buffer;
 }
 
 
@@ -421,6 +442,12 @@ void *connection_handler(void *socket_desc)
     int fd;
     int result;
     char error_msg[100];
+    char read1[100];
+    char read2[100];
+    char read3[100];
+    char read4[100];
+    char read5[100];
+    char read6[100];
 
     struct file_action
     {
@@ -644,17 +671,13 @@ void *connection_handler(void *socket_desc)
     {
    // Response: {"build_date": "millis","fw_version": "string_version","device_name": "string_name"}
         returnMsg[0] = '\0';
-        strcat (returnMsg,"{\"build_date\":\"");
-        strcat (returnMsg,read_file_data("/data/ro_bootimage_build_date_utc",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\",");
-        strcat (returnMsg,"\"fw_version\":\"");
-        strcat (returnMsg,read_file_data("/data/fs_bsp_version",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\",");
-        strcat (returnMsg,"\"device_name\":\"");
-        strcat (returnMsg,read_file_data("/data/ro_product_device",buffer_read_file,size_of_array_read_file));
-        strcat (returnMsg,"\"}");
-        //sprintf(returnMs
-        printf("%s\n", returnMsg);
+        read_file_data_no_space("/data/ro_bootimage_build_date_utc",read1,size_of_array_read_file);
+        read_file_data_no_space("/data/fs_bsp_version",read2,size_of_array_read_file);
+        read_file_data_no_space("/data/ro_product_device",read3,size_of_array_read_file);
+        read_file_data_no_space("/data/fs_bsp_version",buffer_read_file,size_of_array_read_file);
+        sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "build_date",read1
+        ,"fw_version",read2,
+        "device_name",read3);
         write(sock , returnMsg , strlen(returnMsg));
     }
 
