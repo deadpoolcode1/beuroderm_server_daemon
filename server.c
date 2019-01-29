@@ -26,7 +26,7 @@
 #define BIT_FUELGAUGE "BIT_FUELGAUGE"
 #define BIT_CRC "BIT_CRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
-
+#define SOCKET_MESSAGE_MAX_LENGTH 2000
 
 
 
@@ -145,6 +145,35 @@ char* read_file_data(char *filename,char *buffer, size_t buffer_size)
     // read each line and print it to the screen
     while(-1 != getline(&buffer, &buffer_size, file))
     {
+    }
+    fflush(stdout);
+
+    // make sure we close the filewhen we're
+    // finished
+    fclose(file);
+
+    return buffer;
+}
+
+
+char* read_config_file_data(char *filename,char *buffer, size_t buffer_size)
+{
+	char *line = NULL;
+	size_t tmp_buf_size=100;
+    // open the file for reading
+    FILE *file = fopen(filename, "r");
+    // make sure the file opened properly
+    if(NULL == file)
+    {
+        fprintf(stderr, "Cannot open file: %s\n", filename);
+        return "";
+    }
+
+    // read each line and print it to the screen
+    while(-1 != getline(&line, &tmp_buf_size, file))
+    {
+    	if (strlen(line)>3)
+    		strcat(buffer,line);
     }
     fflush(stdout);
 
@@ -437,7 +466,7 @@ void *connection_handler(void *socket_desc)
     //Get the socket descriptor
     int sock = *(int*)socket_desc;
     int read_size;
-    char client_message[2000];
+    char client_message[SOCKET_MESSAGE_MAX_LENGTH];
     char returnMsg[100];
     int fd;
     int result;
@@ -457,7 +486,7 @@ void *connection_handler(void *socket_desc)
 
     client_message[0]='\0';
     //Receive a message from client
-    while( (read_size = recv(sock , client_message , 2000 , 0)) > 0 )
+    while( (read_size = recv(sock , client_message , SOCKET_MESSAGE_MAX_LENGTH , 0)) > 0 )
     {
         //Send the message back to client
         //write(sock , client_message , strlen(client_message));
@@ -701,7 +730,12 @@ void *connection_handler(void *socket_desc)
         "w_charger_state",read3);
         write(sock , returnMsg , strlen(returnMsg));
     }
-
+    else if(findSubstr(client_message, "read_command:config")>-1)
+    {
+    	client_message[0]='\0';
+        read_config_file_data("/data/config.file",client_message,SOCKET_MESSAGE_MAX_LENGTH);
+        write(sock , client_message , strlen(client_message));
+    }
     client_message[0]='\0';
 	//sleep(1);
     }
