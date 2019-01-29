@@ -27,7 +27,8 @@
 #define BIT_CRC "BIT_CRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
 #define SOCKET_MESSAGE_MAX_LENGTH 2000
-
+#define REPLY_ACK "ACK"
+#define REPLY_NACK "NACK"
 
 
 enum BITRESULT            /* Defines results  */  
@@ -457,7 +458,6 @@ int main(int argc , char *argv[])
      
     return 0;
 }
- 
 /*
  * This will handle connection for each client
  * */
@@ -512,11 +512,17 @@ void *connection_handler(void *socket_desc)
 		printf("value:%s\n",commandFile.value);
 		#endif
 		fd = open_file(commandFile.name);
-		if (fd<0) {}
+		if (fd<0) 
+		{
+			strcpy(returnMsg,REPLY_NACK);
+			send(sock , returnMsg , strlen(returnMsg),0);
+		}
 		else
 		{
 			write( fd, commandFile.value, strlen(commandFile.value) );
-			close(fd);	
+			close(fd);
+			strcpy(returnMsg,REPLY_ACK);
+			send(sock , returnMsg , strlen(returnMsg),0);	
 		}
 	}
 	else if(findSubstr(client_message, "read_file")>-1)
@@ -534,6 +540,8 @@ void *connection_handler(void *socket_desc)
         {
             strcpy(error_msg, "Error: Unable to read the value");
             write(sock , error_msg , strlen(error_msg));
+            strcpy(returnMsg,REPLY_NACK);
+			send(sock , returnMsg , strlen(returnMsg),0);
         }
 		else
 		{
@@ -541,10 +549,10 @@ void *connection_handler(void *socket_desc)
 			read(fd, commandFile.value, sizeof(commandFile.value));
 			#ifdef ServerDebug
 			printf("value read:%s\n",commandFile.value);
-        		#endif
+        	#endif
 			close(fd);
-		    	send(sock , commandFile.value , sizeof(commandFile.value),0);
-                commandFile.value[0] = '\0';
+		    send(sock , commandFile.value , sizeof(commandFile.value),0);
+            commandFile.value[0] = '\0';
 		}
     }
     else if(findSubstr(client_message, "i2c_read")>-1)
@@ -618,7 +626,8 @@ void *connection_handler(void *socket_desc)
 		//#ifdef ServerDebug
 		printf("time:%s\n",commandFile.name);
         //#endif
-        
+        strcpy(returnMsg,REPLY_ACK);
+		send(sock , returnMsg , strlen(returnMsg),0);       
    		my_pid = getpid();    
    		parent_pid = getppid();
    		#ifdef ServerDebug
@@ -661,7 +670,8 @@ void *connection_handler(void *socket_desc)
 		//#ifdef ServerDebug
 		printf("sleep time:%s\n",commandFile.name);
         //#endif
-        
+        strcpy(returnMsg,REPLY_ACK);
+		send(sock , returnMsg , strlen(returnMsg),0);
    		my_pid = getpid();    
    		parent_pid = getppid();
    		#ifdef ServerDebug
