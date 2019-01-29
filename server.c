@@ -696,7 +696,7 @@ void *connection_handler(void *socket_desc)
         read_file_data_no_space("/data/hall_detect",read1,size_of_array_read_file);
         read_file_data_no_space("/sys/class/power_supply/battery/charge_now",read2,size_of_array_read_file);
         read_file_data_no_space("/data/hall_detect",read3,size_of_array_read_file);
-        sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s,\"%s\":\"%s\"} \n", "hall_status",read1
+        sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status",read1
         ,"battery_status_charging",read2,
         "w_charger_state",read3);
         write(sock , returnMsg , strlen(returnMsg));
