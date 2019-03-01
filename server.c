@@ -732,9 +732,9 @@ void *connection_handler(void *socket_desc)
     {
         //Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
         returnMsg[0] = '\0';
-        read_file_data_no_space("/data/hall_detect",read1,size_of_array_read_file);
+        read_file_data_no_space("/sys/class/switch/hall_detect/state",read1,size_of_array_read_file);
         read_file_data_no_space("/sys/class/power_supply/max77818-charger/online",read2,size_of_array_read_file);
-        read_file_data_no_space("/data/hall_detect",read3,size_of_array_read_file);
+        read_file_data_no_space("/sys/class/switch/hall_detect/state",read3,size_of_array_read_file);
         sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status",read1
         ,"battery_status_charging",read2,
         "w_charger_state",read3);
