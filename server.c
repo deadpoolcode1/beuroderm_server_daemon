@@ -7,6 +7,8 @@
 #include <signal.h>
 #include <pthread.h> //for threading , link with lpthread
 #include <ctype.h>
+#include "inih/ini.h"
+
 
 #include <fcntl.h>
 #include <err.h>
@@ -29,7 +31,16 @@
 #define SOCKET_MESSAGE_MAX_LENGTH 2000
 #define REPLY_ACK "ACK"
 #define REPLY_NACK "NACK"
+#define API_VERSION "2"
 
+
+typedef struct
+{
+    int version;
+    char* year;
+} configuration;
+
+configuration config;
 
 enum BITRESULT            /* Defines results  */  
 {  
@@ -51,6 +62,18 @@ struct bittest_info
 };
 
 
+static int handler(void* user, const char* section, const char* name,
+                   const char* value)
+{
+    configuration* pconfig = (configuration*)user;
+
+    #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+    if (MATCH("", "start_year")) 
+        pconfig->year = strdup(value);
+	else 
+        return 0;  /* unknown section/name, error */
+    return 1;
+}
 
 /*
 function return index of occurance pattern in string
@@ -722,8 +745,8 @@ void *connection_handler(void *socket_desc)
     {
         //Response: {"temp_cpu": "temp","temp_wc": "temp"}
         returnMsg[0] = '\0';
-        read_file_data_no_space("/sys/class/thermal/thermal_zone0/temp",read1,size_of_array_read_file);
-        read_file_data_no_space("/sys/class/thermal/thermal_zone0/temp",read2,size_of_array_read_file);
+        read_file_data_no_space("/sys/class/thermal/thermal_zone1/temp",read1,size_of_array_read_file);
+        read_file_data_no_space("/sys/class/thermal/thermal_zone1/temp",read2,size_of_array_read_file);
 		sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\"} \n", "temp_cpu",read1
         ,"temp_wc",read2);
         write(sock , returnMsg , strlen(returnMsg));
@@ -746,6 +769,24 @@ void *connection_handler(void *socket_desc)
         read_config_file_data("/data/config.file",client_message,SOCKET_MESSAGE_MAX_LENGTH);
         write(sock , client_message , strlen(client_message));
     }
+    else if(findSubstr(client_message, "read_command:api_version")>-1)
+    {
+        client_message[0]='\0';
+        strcpy(returnMsg,API_VERSION);
+        send(sock , returnMsg , strlen(returnMsg),0);
+    }
+    else if(findSubstr(client_message, "read_command:device_year")>-1)
+    {
+		if (ini_parse("/data/config.file", handler, &config) < 0) {
+        	printf("Can't load 'test.ini'\n");
+        	goto free_socket;
+    	}
+    	printf("Config loaded from '/data/config.file': device_year=%s\n",
+        config.year);
+        client_message[0]='\0';
+        strcpy(returnMsg,config.year);
+        send(sock , returnMsg , strlen(returnMsg),0);
+    }
     client_message[0]='\0';
 	//sleep(1);
     }
@@ -760,8 +801,7 @@ void *connection_handler(void *socket_desc)
         perror("server recv failed");
     }    
     //Free the socket pointer
-    free(socket_desc);
-    close(sock);
-
-    return 0;
+free_socket:    free(socket_desc);
+    			close(sock);
+    			return 0;
 }
