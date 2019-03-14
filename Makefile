@@ -8,7 +8,7 @@ RM      = rm -f
 ##Server complier is cross compile android
 
 server: server.c
-	$(CCARM) $(CFLAGS)  -static -o server.o server.c i2c.c -lpthread
+	$(CCARM) $(CFLAGS)  -static -o server.o server.c inih/ini.c i2c.c -lpthread
 
 send: send.c
 	$(CCARM) $(CFLAGS)  -static -o send.o send.c
