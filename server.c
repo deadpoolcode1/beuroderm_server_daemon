@@ -8,6 +8,7 @@
 #include <pthread.h> //for threading , link with lpthread
 #include <ctype.h>
 #include "inih/ini.h"
+#include "parson/parson.h"
 
 
 #include <fcntl.h>
@@ -62,10 +63,11 @@ struct bittest_info
 
 typedef struct
 {
-    uint16_t cpu_temperature_keycode;
-    uint16_t wc_temperature_keycode;
-    uint16_t battery_temperature_keycode;
-    uint16_t wc_malfunction_keycode;
+    uint8_t cpu_high_temperature_alarm;
+    uint8_t cpu_critical_temperature_alarm;
+    uint8_t wc_high_temperature_alarm;
+    uint8_t battery_high_temperature_alarm;
+    uint8_t battery_not_detected;
 } alarms_struct;
 
 alarms_struct alarms;
@@ -797,22 +799,34 @@ void *connection_handler(void *socket_desc)
         strcpy(returnMsg,config.year);
         send(sock , returnMsg , strlen(returnMsg),0);
     }
-    else if(findSubstr(client_message, "read_command:device_year")>-1)
+    else if(findSubstr(client_message, "write_command:alarms")>-1)//this is a temp fix for passing alarm status untill unify with interrupt script
     {
-		if (ini_parse("/data/config.file", handler, &config) < 0) {
-        	printf("Can't load 'test.ini'\n");
-        	goto free_socket;
-    	}
-    	printf("Config loaded from '/data/config.file': device_year=%s\n",
-        config.year);
-        client_message[0]='\0';
-        strcpy(returnMsg,config.year);
-        send(sock , returnMsg , strlen(returnMsg),0);
+    	char alarm_status [6];
+    	strcpy( alarm_status, client_message+findSubstr(client_message, "write_command:alarms") + strlen("write_command:alarm") );
+        alarms.cpu_high_temperature_alarm =  (uint8_t)(alarm_status[0] - '0');
+        alarms.cpu_critical_temperature_alarm =  (uint8_t)(alarm_status[1] - '0');
+        alarms.wc_high_temperature_alarm =  (uint8_t)(alarm_status[2] - '0');
+        alarms.battery_high_temperature_alarm =  (uint8_t)(alarm_status[3] - '0');
+        alarms.battery_not_detected =  (uint8_t)(alarm_status[4] - '0');
+
+ 		strcpy(returnMsg,REPLY_ACK);
+		send(sock , returnMsg , strlen(returnMsg),0);
     }
     else if(findSubstr(client_message, "read_command:alarms")>-1)
     {
         client_message[0]='\0';
-        strcpy(returnMsg,client_message);
+    	JSON_Value *root_value = json_value_init_object();
+    	JSON_Object *root_object = json_value_get_object(root_value);
+    	char *serialized_string = NULL;
+    	json_object_set_boolean(root_object, "cpu_high_temperature_alarm", alarms.cpu_high_temperature_alarm);
+    	json_object_set_boolean(root_object, "cpu_critical_temperature_alarm", alarms.cpu_critical_temperature_alarm);
+    	json_object_set_boolean(root_object, "wc_high_temperature_alarm", alarms.wc_high_temperature_alarm);
+    	json_object_set_boolean(root_object, "battery_high_temperature_alarm", alarms.battery_high_temperature_alarm);
+    	json_object_set_boolean(root_object, "battery_not_detected", alarms.battery_not_detected);
+    	serialized_string = json_serialize_to_string_pretty(root_value);
+    	strcpy(returnMsg,serialized_string);
+    	json_free_serialized_string(serialized_string);
+    	json_value_free(root_value);       
         send(sock , returnMsg , strlen(returnMsg),0);
     }
     client_message[0]='\0';

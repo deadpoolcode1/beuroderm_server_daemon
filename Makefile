@@ -4,11 +4,18 @@ CC = gcc
 CCMAC = gcc-4.8
 CFLAGS  = -Wall -std=gnu99 -ggdb
 RM      = rm -f
+#I2C functions
+LDLIBS+=i2c.c
+#parsing ini files 
+LDLIBS+=inih/ini.c
+#parse\serialize JSON
+LDLIBS+=parson/parson.c
+
 
 ##Server complier is cross compile android
 
 server: server.c
-	$(CCARM) $(CFLAGS)  -static -o server.o server.c inih/ini.c i2c.c -lpthread
+	$(CCARM) $(CFLAGS)  -static -o server.o server.c  $(LDLIBS)  -lpthread
 
 send: send.c
 	$(CCARM) $(CFLAGS)  -static -o send.o send.c
