@@ -36,7 +36,6 @@
 
 typedef struct
 {
-    int version;
     char* year;
 } configuration;
 
@@ -60,6 +59,17 @@ struct bittest_info
     uint8_t crc_status;
     char timestamp [100];
 };
+
+typedef struct
+{
+    uint16_t cpu_temperature_keycode;
+    uint16_t wc_temperature_keycode;
+    uint16_t battery_temperature_keycode;
+    uint16_t wc_malfunction_keycode;
+} alarms_struct;
+
+alarms_struct alarms;
+
 
 
 static int handler(void* user, const char* section, const char* name,
@@ -785,6 +795,24 @@ void *connection_handler(void *socket_desc)
         config.year);
         client_message[0]='\0';
         strcpy(returnMsg,config.year);
+        send(sock , returnMsg , strlen(returnMsg),0);
+    }
+    else if(findSubstr(client_message, "read_command:device_year")>-1)
+    {
+		if (ini_parse("/data/config.file", handler, &config) < 0) {
+        	printf("Can't load 'test.ini'\n");
+        	goto free_socket;
+    	}
+    	printf("Config loaded from '/data/config.file': device_year=%s\n",
+        config.year);
+        client_message[0]='\0';
+        strcpy(returnMsg,config.year);
+        send(sock , returnMsg , strlen(returnMsg),0);
+    }
+    else if(findSubstr(client_message, "read_command:alarms")>-1)
+    {
+        client_message[0]='\0';
+        strcpy(returnMsg,client_message);
         send(sock , returnMsg , strlen(returnMsg),0);
     }
     client_message[0]='\0';
