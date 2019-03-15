@@ -32,7 +32,7 @@
 #define SOCKET_MESSAGE_MAX_LENGTH 2000
 #define REPLY_ACK "ACK"
 #define REPLY_NACK "NACK"
-#define API_VERSION "2"
+#define API_VERSION "3"
 
 
 typedef struct
@@ -68,6 +68,7 @@ typedef struct
     uint8_t wc_high_temperature_alarm;
     uint8_t battery_high_temperature_alarm;
     uint8_t battery_not_detected;
+    uint8_t wc_error_alarm;
 } alarms_struct;
 
 alarms_struct alarms;
@@ -808,7 +809,7 @@ void *connection_handler(void *socket_desc)
         alarms.wc_high_temperature_alarm =  (uint8_t)(alarm_status[2] - '0');
         alarms.battery_high_temperature_alarm =  (uint8_t)(alarm_status[3] - '0');
         alarms.battery_not_detected =  (uint8_t)(alarm_status[4] - '0');
-
+        alarms.wc_error_alarm =  (uint8_t)(alarm_status[5] - '0');
  		strcpy(returnMsg,REPLY_ACK);
 		send(sock , returnMsg , strlen(returnMsg),0);
     }
@@ -823,6 +824,7 @@ void *connection_handler(void *socket_desc)
     	json_object_set_boolean(root_object, "wc_high_temperature_alarm", alarms.wc_high_temperature_alarm);
     	json_object_set_boolean(root_object, "battery_high_temperature_alarm", alarms.battery_high_temperature_alarm);
     	json_object_set_boolean(root_object, "battery_not_detected", alarms.battery_not_detected);
+    	json_object_set_boolean(root_object, "wc_error_alarm", alarms.wc_error_alarm);
     	serialized_string = json_serialize_to_string_pretty(root_value);
     	strcpy(returnMsg,serialized_string);
     	json_free_serialized_string(serialized_string);
