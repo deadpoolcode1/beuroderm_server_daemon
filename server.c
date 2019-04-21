@@ -19,7 +19,8 @@
 #ifdef ServerDebug
 #undef ServerDebug
 #endif
-#define CONFIG_FILE_PATH "/system/bin/config.file"
+#define FW_CONFIG_FILE_PATH "/system/bin/config.file"
+#define APK_CONFIG_FILE_PATH "/sdcard/NEURODERM/cs_config.json"
 #define BIT_I2C "BIT_I2C"
 #define BIT_BLE "BIT_BLE"
 #define BIT_BATTERY "BIT_BATTERY"
@@ -27,7 +28,8 @@
 #define BIT_DISPLAY "BIT_DISPLAY"
 #define BIT_GPIOEXPENDER "BIT_GPIOEXPENDER"
 #define BIT_FUELGAUGE "BIT_FUELGAUGE"
-#define BIT_CRC "BIT_CRC"
+#define BIT_FWCRC "BIT_FWCRC"
+#define BIT_APKCRC "BIT_APKCRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
 #define SOCKET_MESSAGE_MAX_LENGTH 2000
 #define REPLY_ACK "ACK"
@@ -44,8 +46,8 @@ configuration config;
 
 enum BITRESULT            /* Defines results  */  
 {  
-    PASSED = 0, 
-    FAILED      
+    FAILED = 0, 
+    PASSED      
 } ;
 
 struct bittest_info
@@ -57,7 +59,8 @@ struct bittest_info
     uint8_t display_status;
     uint8_t gpioexpender_status;
     uint8_t fuelgauge_status;
-    uint8_t crc_status;
+    uint8_t fw_crc_status;
+    uint8_t apk_crc_status;
     char timestamp [100];
 };
 
@@ -124,7 +127,7 @@ void delay(unsigned int mseconds)
         ;
 }
 
-struct bittest_info currect_bittest;
+struct bittest_info latest_bittest;
 
 //handles a new connection
 void *connection_handler(void *);
@@ -305,11 +308,29 @@ uint8_t read_i2c(char *string_command)
 } 
 
 
+
+
+char* filter_crc_string(char* input)                                         
+{
+    int i,j;
+    char *output=input;
+    for (i = 0, j = 0; i<strlen(input); i++,j++)          
+    {
+        if (input[i]!=' ' && input[i]!='\r' && input[i]!='\n')                           
+            output[j]=input[i];                     
+        else
+            j--;                                     
+    }
+    output[j]=0;
+    return output;
+}
+
 int crc_passed(char * filename)
 {
-	size_t buffer_size = 64;
-	char *buffer;
-	char full_buffer[1024];
+    size_t buffer_size = 150;
+    char *buffer;
+    char *buffer_filtered;
+    char full_buffer[5000];
     unsigned char x;
     unsigned short crc = 0xFFFF;
     unsigned short length;
@@ -332,25 +353,37 @@ int crc_passed(char * filename)
         exit(1);
     }
     full_buffer[0]='\0';
+    //assign memory for filtered buffer
+    buffer_filtered = (char *)malloc(buffer_size * sizeof(char));
+    if( buffer_filtered == NULL)
+    {
+        perror("Unable to allocate buffer_filtered");
+        exit(1);
+    }
+    buffer_filtered[0]='\0';
     while(-1 != getline(&buffer, &buffer_size, file))
     {
         char *pch = strstr(buffer, "crc");
         if(!pch) // crc line does not get included in crc calculation
-        	strncat(full_buffer,buffer,strlen(buffer)-1);
-        else
         {
+		sprintf(buffer_filtered,"%s",filter_crc_string(buffer));
+ 		sprintf(&full_buffer[strlen(full_buffer)], "%s", buffer_filtered);
+        }
+     else
+         {
+
         	char *p = buffer;
 			while (*p) 
 			{ // While there are more characters to process...
     			if (isdigit(*p)) 
     			{ // Upon finding a digit, ...
         			val = strtol(p, &p, 10); // Read a number, ...
-        			printf("\r\nCRC:%ld\n", val); // and print it.
+        			printf("\r\n%s CRC:%ld\n", filename, val); // and print it.
    				 } 
    				 else 
         			p++;
-    		}
-        }
+    	}
+      }
     }
     fflush(stdout);
 
@@ -360,81 +393,100 @@ int crc_passed(char * filename)
     //calculate CRC
     length=strlen(full_buffer);
     while (length--){
+	if (*data_p +1 == '\r'  || *data_p +1 == '\n' || *data_p +1 == ' ')
+	{
+		data_p++;
+		continue;
+	}
         x = crc >> 8 ^ *data_p++;
         x ^= x>>4;
         crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
     }
-    printf ("CRC result: %d\r\n",crc);
+    printf ("%s CRC result: %d\r\n",filename, crc);
     if (crc==val)
     	return 0;
     else return -1;
 }
 
+
+void return_current_bit_status(char *update_string)
+{
+        update_string[0]='\0';
+    	JSON_Value *root_value = json_value_init_object();
+    	JSON_Object *root_object = json_value_get_object(root_value);
+    	json_object_set_boolean(root_object, BIT_BLE, latest_bittest.ble_status);
+    	json_object_set_boolean(root_object, BIT_RTC, latest_bittest.rtc_status);
+    	json_object_set_boolean(root_object, BIT_GPIOEXPENDER, latest_bittest.gpioexpender_status);
+    	json_object_set_boolean(root_object, BIT_FWCRC, latest_bittest.fw_crc_status);
+    	json_object_set_boolean(root_object, BIT_APKCRC, latest_bittest.apk_crc_status);
+    	json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp);
+    	update_string = json_serialize_to_string_pretty(root_value);
+	printf("bit test: %s\r\n", update_string);
+    	json_value_free(root_value);
+}
+
+
 //fucnction that runs bittest full test
 void bittest_init_full()
 {
+    char return_reply[600];
     // /sys/halleffect/
     // /dev/hci_tty
 
     time_t t = time(NULL);
     struct tm * p = localtime(&t);
-    currect_bittest.i2c_status=FAILED;
-    currect_bittest.ble_status=FAILED;
-    currect_bittest.battery_status=FAILED;
-    currect_bittest.rtc_status=FAILED;
-    currect_bittest.display_status=FAILED;
-    currect_bittest.gpioexpender_status=FAILED;
-    currect_bittest.fuelgauge_status=FAILED;
-    currect_bittest.crc_status=FAILED;
+    latest_bittest.i2c_status=FAILED;
+    latest_bittest.ble_status=FAILED;
+    latest_bittest.battery_status=FAILED;
+    latest_bittest.rtc_status=FAILED;
+    latest_bittest.display_status=FAILED;
+    latest_bittest.gpioexpender_status=FAILED;
+    latest_bittest.fuelgauge_status=FAILED;
+    latest_bittest.fw_crc_status=FAILED;
+    latest_bittest.apk_crc_status=FAILED;
 
     printf("\n\n*** Bit testing procedure started! ***\n\n");
     //BLE test 
-    if ( file_exists("/dev/hci_tty") >-1 ) currect_bittest.ble_status=PASSED;
-    printf("BLE test: %d\n", currect_bittest.ble_status);
+    if ( file_exists("/dev/hci_tty") >-1 ) latest_bittest.ble_status=PASSED;
     //battery test
     char *batterybuffer = malloc(10 * sizeof(char));
-    if ( atoi(read_file_data("/sys/class/power_supply/battery/present",batterybuffer,10)) >0 ) currect_bittest.battery_status=PASSED;
+    if ( atoi(read_file_data("/sys/class/power_supply/battery/present",batterybuffer,10)) >0 ) latest_bittest.battery_status=PASSED;
     free(batterybuffer);
-    printf("battery test: %d\n", currect_bittest.battery_status );
     //rtc test
-    if ( file_exists("/data/rtctest") >-1 )currect_bittest.rtc_status=PASSED;
-    printf("rtc test: %d\n", currect_bittest.rtc_status );
+    if ( file_exists("/data/rtctest") >-1 )latest_bittest.rtc_status=PASSED;
     //display test
-    currect_bittest.display_status=PASSED;
-    printf("display test: %d\n", currect_bittest.display_status );
+    latest_bittest.display_status=PASSED;
     //gpio i2c expender test
-    if ( file_exists("/data/ledred") >-1 ) currect_bittest.gpioexpender_status=PASSED;
-    printf("gpioexpender_status test: %d\n", currect_bittest.gpioexpender_status );
+    if ( file_exists("/data/ledred") >-1 ) latest_bittest.gpioexpender_status=PASSED;
     //fuelgauge test
     char *fuelgaugebuffer = malloc(10 * sizeof(char));
-    if ( atoi(read_file_data("/sys/class/power_supply/battery/voltage_now",fuelgaugebuffer,10)) >0 ) currect_bittest.fuelgauge_status=PASSED;
+    if ( atoi(read_file_data("/sys/class/power_supply/battery/voltage_now",fuelgaugebuffer,10)) >0 ) latest_bittest.fuelgauge_status=PASSED;
     free(fuelgaugebuffer);
-    printf("fuelgauge test: %d\n", currect_bittest.fuelgauge_status );
-    //CRC test
-    if ( crc_passed(CONFIG_FILE_PATH) == 0) currect_bittest.crc_status=PASSED;
-    printf("crc_status test: %d\n", currect_bittest.crc_status );
+    //FW CRC test
+    if ( crc_passed(FW_CONFIG_FILE_PATH) == 0) latest_bittest.fw_crc_status=PASSED;
+    //APK CRC test
+    if ( crc_passed(APK_CONFIG_FILE_PATH) == 0) latest_bittest.apk_crc_status=PASSED;
     //I2C test
-    if (currect_bittest.gpioexpender_status==PASSED||currect_bittest.fuelgauge_status==PASSED||currect_bittest.battery_status==PASSED) currect_bittest.i2c_status=PASSED;
-    printf("I2C test: %d\n", currect_bittest.i2c_status );
-
-
-    if (currect_bittest.ble_status==PASSED  &&
-    currect_bittest.rtc_status==PASSED  
-    && currect_bittest.gpioexpender_status==PASSED && currect_bittest.crc_status==PASSED)
+    if (latest_bittest.gpioexpender_status==PASSED||latest_bittest.fuelgauge_status==PASSED||latest_bittest.battery_status==PASSED) latest_bittest.i2c_status=PASSED;
+    strftime(latest_bittest.timestamp, 1000, "%c" , p);
+    return_current_bit_status(return_reply);
+    if (latest_bittest.ble_status==PASSED  &&
+    latest_bittest.rtc_status==PASSED  
+    && latest_bittest.gpioexpender_status==PASSED && latest_bittest.fw_crc_status==PASSED && latest_bittest.apk_crc_status==PASSED)
     {
-        strftime(currect_bittest.timestamp, 1000, "%c" , p);
         printf("\n\n*** Bit test Passed! ***\n\n");
-        printf("\n\n*** Timestamp : %s ***\n\n", currect_bittest.timestamp );
     }
     else
     {
-    	strftime(currect_bittest.timestamp, 1000, "%c" , p);
+    	
         printf("\n\n*** Bit test Failed! ***\n\n");
     }
     
 
 
 }
+
+
 
 int main(int argc , char *argv[])
 {
@@ -622,7 +674,7 @@ void *connection_handler(void *socket_desc)
         //if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            sprintf(returnMsg, " {\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_RTC,currect_bittest.rtc_status, BIT_GPIOEXPENDER,currect_bittest.gpioexpender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
+            return_current_bit_status(returnMsg);
             printf("%s\n", returnMsg);
             write(sock , returnMsg , strlen(returnMsg));
         }
@@ -632,9 +684,7 @@ void *connection_handler(void *socket_desc)
         /*action is bittest_read
         */
         returnMsg[0] = '\0';
-
-        sprintf(returnMsg, " {\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%d\",\"%s\":\"%s\"} \n", BIT_BLE,currect_bittest.ble_status , BIT_RTC,currect_bittest.rtc_status, BIT_GPIOEXPENDER,currect_bittest.gpioexpender_status,BIT_CRC,currect_bittest.crc_status ,BIT_TIMESTAMP,currect_bittest.timestamp);
-        send(sock , returnMsg , strlen(returnMsg),0);
+        return_current_bit_status(returnMsg);
         printf("Bit test status sent\n");
         
     }
