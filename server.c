@@ -409,7 +409,7 @@ int crc_passed(char * filename)
 }
 
 
-void return_current_bit_status(char *update_string)
+char * return_current_bit_status(char *update_string)
 {
         update_string[0]='\0';
     	JSON_Value *root_value = json_value_init_object();
@@ -423,6 +423,7 @@ void return_current_bit_status(char *update_string)
     	update_string = json_serialize_to_string_pretty(root_value);
 	printf("bit test: %s\r\n", update_string);
     	json_value_free(root_value);
+	return update_string;
 }
 
 
@@ -469,7 +470,7 @@ void bittest_init_full()
     //I2C test
     if (latest_bittest.gpioexpender_status==PASSED||latest_bittest.fuelgauge_status==PASSED||latest_bittest.battery_status==PASSED) latest_bittest.i2c_status=PASSED;
     strftime(latest_bittest.timestamp, 1000, "%c" , p);
-    return_current_bit_status(return_reply);
+    sprintf(return_reply,"%s",return_current_bit_status(return_reply));
     if (latest_bittest.ble_status==PASSED  &&
     latest_bittest.rtc_status==PASSED  
     && latest_bittest.gpioexpender_status==PASSED && latest_bittest.fw_crc_status==PASSED && latest_bittest.apk_crc_status==PASSED)
@@ -674,7 +675,7 @@ void *connection_handler(void *socket_desc)
         //if(findSubstr(client_message, "full")>-1)
         {
             bittest_init_full();
-            return_current_bit_status(returnMsg);
+            sprintf(returnMsg,"%s",return_current_bit_status(returnMsg));
             printf("%s\n", returnMsg);
             write(sock , returnMsg , strlen(returnMsg));
         }
@@ -684,9 +685,8 @@ void *connection_handler(void *socket_desc)
         /*action is bittest_read
         */
         returnMsg[0] = '\0';
-        return_current_bit_status(returnMsg);
-        printf("Bit test status sent\n");
-        
+        sprintf(returnMsg,"%s",return_current_bit_status(returnMsg));
+        write(sock , returnMsg , strlen(returnMsg));
     }
     else if(findSubstr(client_message, "read_time")>-1)
 	{
