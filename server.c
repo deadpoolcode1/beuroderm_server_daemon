@@ -46,8 +46,8 @@ configuration config;
 
 enum BITRESULT            /* Defines results  */  
 {  
-    FAILED = 0, 
-    PASSED      
+    PASSED = 0, 
+    FAILED      
 } ;
 
 struct bittest_info
