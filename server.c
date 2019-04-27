@@ -47,7 +47,8 @@
 
 #define i2c0_path "/dev/i2c-0"
 #define i2c2_path "/dev/i2c-2"
-
+#define rtc_time_read "/sys/class/i2c-dev/i2c-2/device/2-0068/rtc/rtc0/since_epoch"
+#define battery_exists_path "/sys/class/power_supply/battery/present"
 //i2c0_path
 #define i2c_pmic_status_address 0x36
 #define i2c_pmic_status_register 0x00
@@ -458,7 +459,7 @@ char * return_current_bit_status(char *update_string)
 void bittest_init_full()
 {
     char return_reply[600];
-    uint8_t i2c_replay;
+    uint32_t rtc_time_value;
     time_t t = time(NULL);
     struct tm * p = localtime(&t);
 
@@ -478,12 +479,20 @@ void bittest_init_full()
     	latest_bittest.ble_status=PASSED;
     else
     	latest_bittest.ble_status=FAILED;
-    char *batterybuffer = malloc(10 * sizeof(char));
-    if ( atoi(read_file_data("/sys/class/power_supply/battery/present",batterybuffer,10)) >0 )
+    char *filebuffer = malloc(10 * sizeof(char));
+    if ( atoi(read_file_data(battery_exists_path,filebuffer,10)) >0 )
     	latest_bittest.battery_status=PASSED;
     else
     	latest_bittest.battery_status=FAILED;
-    free(batterybuffer);
+    free(filebuffer);
+    char *filebufferl = malloc(20 * sizeof(char));
+    rtc_time_value = atol(read_file_data(rtc_time_read,filebufferl,20));
+    sleep(2);
+    if ( atol(read_file_data(rtc_time_read,filebufferl,20)) - rtc_time_value > 1 )
+    	latest_bittest.rtc_functional_status=PASSED;
+    else
+    	latest_bittest.rtc_functional_status=FAILED;
+    free(filebufferl);
     if ( crc_passed(FW_CONFIG_FILE_PATH) == 0)
     	latest_bittest.fw_crc_status=PASSED;
     else
@@ -568,7 +577,6 @@ void *connection_handler(void *socket_desc)
     char client_message[SOCKET_MESSAGE_MAX_LENGTH];
     char returnMsg[100];
     int fd;
-    int result;
     char error_msg[100];
     char read1[100];
     char read2[100];
