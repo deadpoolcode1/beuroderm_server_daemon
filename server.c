@@ -21,13 +21,20 @@
 #endif
 #define FW_CONFIG_FILE_PATH "/system/bin/config.file"
 #define APK_CONFIG_FILE_PATH "/sdcard/NEURODERM/cs_config.json"
-#define BIT_I2C "BIT_I2C"
+#define BIT_I2C_PMIC "BIT_I2C_PMIC"
+#define BIT_I2C_FUELGAUGE "BIT_I2C_FUELGAUGE"
+#define BIT_I2C_MAX77818TOP "BIT_I2C_MAX77818TOP"
+#define BIT_I2C_MAX77818CHARGER "BIT_I2C_MAX77818CHARGER"
+#define BIT_I2C_DISPLAYTOUCHPANEL "BIT_I2C_DISPLAYTOUCHPANEL"
+#define BIT_I2C_MAX77816DC3 "BIT_I2C_MAX77816DC3"
+#define BIT_I2C_RTC "BIT_I2C_RTC"
+#define BIT_I2C_RTCMEMBLOCK0 "BIT_I2C_RTCMEMBLOCK0"
+#define BIT_I2C_RTCMEMBLOCK1 "BIT_I2C_RTCMEMBLOCK1"
+#define BIT_I2C_CRADLETEMPSENSOR "BIT_I2C_CRADLETEMPSENSOR"
+#define BIT_I2C_IOEXPENDER "BIT_I2C_IOEXPENDER"
 #define BIT_BLE "BIT_BLE"
 #define BIT_BATTERY "BIT_BATTERY"
-#define BIT_RTC "BIT_RTC"
-#define BIT_DISPLAY "BIT_DISPLAY"
-#define BIT_GPIOEXPENDER "BIT_GPIOEXPENDER"
-#define BIT_FUELGAUGE "BIT_FUELGAUGE"
+#define BIT_RTCFUNCTIONAL "BIT_RTCFUNCTIONAL"
 #define BIT_FWCRC "BIT_FWCRC"
 #define BIT_APKCRC "BIT_APKCRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
@@ -36,7 +43,35 @@
 #define REPLY_NACK "NACK"
 #define API_VERSION "3"
 
+//i2c bit test address, paths, registers definition
 
+#define i2c0_path "/dev/i2c-0"
+#define i2c2_path "/dev/i2c-2"
+
+//i2c0_path
+#define i2c_pmic_status_address 0x36
+#define i2c_pmic_status_register 0x00
+#define i2c_fuelgauge_status_address 0x66
+#define i2c_fuelgauge_status_register 0x20
+#define i2c_max77818top_status_address 0x69
+#define i2c_max77818top_status_register 0xb0
+#define i2c_max77818charger_status_address 0x18
+#define i2c_max77818charger_status_register 0x00
+#define i2c_displaytouchpanel_status_address 0x26
+#define i2c_displaytouchpanel_status_register 0x00
+//i2c2_path
+#define i2c_max77816dc3_status_address 0x18
+#define i2c_max77816dc3_status_register 0x00
+#define i2c_rtc_status_address 0x68
+#define i2c_rtc_status_register 0x00
+#define i2c_rtcmemblock0_status_address 0x69
+#define i2c_rtcmemblock0_status_register 0x00
+#define i2c_rtcmemblock1_status_address 0x6A
+#define i2c_rtcmemblock1_status_register 0x00
+#define i2c_cradletempsensor_status_address 0x48
+#define i2c_cradletempsensor_status_register 0x00
+#define i2c_ioexpender_status_address 0x20
+#define i2c_ioexpender_status_register 0x00
 typedef struct
 {
     char* year;
@@ -50,15 +85,24 @@ enum BITRESULT            /* Defines results  */
     FAILED      
 } ;
 
+
+
 struct bittest_info
 {
-    uint8_t i2c_status;
+    uint8_t i2c_pmic_status;  			/*!< i2c0 0x36 */
+    uint8_t i2c_fuelgauge_status;		/*!< i2c0 0x66 */
+    uint8_t i2c_max77818top_status;		/*!< i2c0 0x69 */
+    uint8_t i2c_max77818charger_status;		/*!< i2c0 0x18 */
+    uint8_t i2c_displaytouchpanel_status;	/*!< i2c0 0x26 */
+    uint8_t i2c_max77816dc3_status;		/*!< i2c2 0x18 */
+    uint8_t i2c_rtc_status;			/*!< i2c2 0x68 */
+    uint8_t i2c_rtcmemblock0_status;		/*!< i2c2 0x69 */
+    uint8_t i2c_rtcmemblock1_status;		/*!< i2c2 0x6A */
+    uint8_t i2c_cradletempsensor_status;	/*!< i2c2 0x48 */
+    uint8_t i2c_ioexpender_status;		/*!< i2c2 0x20 */
     uint8_t ble_status;
     uint8_t battery_status;
-    uint8_t rtc_status;
-    uint8_t display_status;
-    uint8_t gpioexpender_status;
-    uint8_t fuelgauge_status;
+    uint8_t rtc_functional_status;
     uint8_t fw_crc_status;
     uint8_t apk_crc_status;
     char timestamp [100];
@@ -254,60 +298,32 @@ int file_exists(char *filename)
 
     return fd;
 }
-/*
-handles read i2c server command
-exaqmple: /dev/i2c-1;0x1b;0x5d
-*/
-uint8_t read_i2c(char *string_command)
+
+
+
+uint8_t read_i2c(char *path, uint8_t m_address, uint8_t m_register)
 {
-     char *path;
-     uint8_t addr=0, reg=0;
-     int data;
-     int file, rc;
-
-     const char s[2] = ";";
-
-     char *tmp[4];
-
-     tmp[0] = strtok(string_command, s);
-
-     for (int i = 1; i < 4; ++i)
-     {
-         tmp[i] = strtok(NULL, s);
-     }
-
-     if(NULL != tmp[3])
-     {
-         printf("Error in i2c input");
-         return (0);
-     }
-     else
-     {
-         path = tmp[0];
-         addr = (uint8_t)strtol(tmp[1], NULL, 16);
-         reg = (uint8_t)strtol(tmp[2], NULL, 16);
-    #ifdef ServerDebug
-         printf("Path: %s\nAddr: %s(hex), %d(int)\nReg: %s(hex), %d(int)\n", path, tmp[1], addr, tmp[2], reg);
-    #endif
-     }
-
+    int rc, file;
+    uint8_t read_data;
     file = open(path, O_RDWR);
     if (file < 0)
-        err(errno, "Tried to open '%s'", path);
-
-    rc = ioctl(file, I2C_SLAVE_FORCE, addr);
+    	goto failed_reading;
+    rc = ioctl(file, I2C_SLAVE_FORCE, m_address);
     if (rc < 0)
-        err(errno, "Tried to set device address '0x%02x'", addr);
-
-    // i2c_smbus_read_byte_data - ?
-
-    data = i2c_smbus_read_byte_data(file, reg);
-    //printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",path, addr, reg, data);
-    printf("%d\n", data );
-    return data;
+    	goto failed_reading;
+    read_data = i2c_smbus_read_byte_data(file, m_register);
+    return read_data;
+failed_reading:   err(errno, "failed reading");
+    return read_data;
 } 
 
+//function tests vale in specified address is not 0xff, thus varifying i2c communication
+//return 0 on succesful communication (value not 0xff)
+uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
+{
 
+	return read_i2c(path, m_address, m_register) == 0xff ? FAILED : PASSED;
+}
 
 
 char* filter_crc_string(char* input)                                         
@@ -414,16 +430,27 @@ char * return_current_bit_status(char *update_string)
         update_string[0]='\0';
     	JSON_Value *root_value = json_value_init_object();
     	JSON_Object *root_object = json_value_get_object(root_value);
+    	json_object_set_boolean(root_object, BIT_I2C_PMIC, latest_bittest.i2c_pmic_status);
+    	json_object_set_boolean(root_object, BIT_I2C_FUELGAUGE, latest_bittest.i2c_fuelgauge_status);
+    	json_object_set_boolean(root_object, BIT_I2C_MAX77818TOP, latest_bittest.i2c_max77818top_status);
+    	json_object_set_boolean(root_object, BIT_I2C_MAX77818CHARGER, latest_bittest.i2c_max77818charger_status);
+    	json_object_set_boolean(root_object, BIT_I2C_DISPLAYTOUCHPANEL, latest_bittest.i2c_displaytouchpanel_status);
+    	json_object_set_boolean(root_object, BIT_I2C_MAX77816DC3, latest_bittest.i2c_max77816dc3_status);
+    	json_object_set_boolean(root_object, BIT_I2C_RTC, latest_bittest.i2c_rtc_status);
+    	json_object_set_boolean(root_object, BIT_I2C_RTCMEMBLOCK0, latest_bittest.i2c_rtcmemblock0_status);
+    	json_object_set_boolean(root_object, BIT_I2C_RTCMEMBLOCK1, latest_bittest.i2c_rtcmemblock1_status);
+    	json_object_set_boolean(root_object, BIT_I2C_CRADLETEMPSENSOR, latest_bittest.i2c_cradletempsensor_status);
+    	json_object_set_boolean(root_object, BIT_I2C_IOEXPENDER, latest_bittest.i2c_ioexpender_status);
     	json_object_set_boolean(root_object, BIT_BLE, latest_bittest.ble_status);
-    	json_object_set_boolean(root_object, BIT_RTC, latest_bittest.rtc_status);
-    	json_object_set_boolean(root_object, BIT_GPIOEXPENDER, latest_bittest.gpioexpender_status);
+    	json_object_set_boolean(root_object, BIT_BATTERY, latest_bittest.battery_status);
+    	json_object_set_boolean(root_object, BIT_RTCFUNCTIONAL, latest_bittest.rtc_functional_status);
     	json_object_set_boolean(root_object, BIT_FWCRC, latest_bittest.fw_crc_status);
     	json_object_set_boolean(root_object, BIT_APKCRC, latest_bittest.apk_crc_status);
     	json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp);
     	update_string = json_serialize_to_string_pretty(root_value);
-	printf("bit test: %s\r\n", update_string);
+    	printf("bit test: %s\r\n", update_string);
     	json_value_free(root_value);
-	return update_string;
+    	return update_string;
 }
 
 
@@ -431,60 +458,43 @@ char * return_current_bit_status(char *update_string)
 void bittest_init_full()
 {
     char return_reply[600];
-    // /sys/halleffect/
-    // /dev/hci_tty
-
+    uint8_t i2c_replay;
     time_t t = time(NULL);
     struct tm * p = localtime(&t);
-    latest_bittest.i2c_status=FAILED;
-    latest_bittest.ble_status=FAILED;
-    latest_bittest.battery_status=FAILED;
-    latest_bittest.rtc_status=FAILED;
-    latest_bittest.display_status=FAILED;
-    latest_bittest.gpioexpender_status=FAILED;
-    latest_bittest.fuelgauge_status=FAILED;
-    latest_bittest.fw_crc_status=FAILED;
-    latest_bittest.apk_crc_status=FAILED;
 
     printf("\n\n*** Bit testing procedure started! ***\n\n");
-    //BLE test 
-    if ( file_exists("/dev/hci_tty") >-1 ) latest_bittest.ble_status=PASSED;
-    //battery test
-    char *batterybuffer = malloc(10 * sizeof(char));
-    if ( atoi(read_file_data("/sys/class/power_supply/battery/present",batterybuffer,10)) >0 ) latest_bittest.battery_status=PASSED;
-    free(batterybuffer);
-    //rtc test
-    if ( file_exists("/data/rtctest") >-1 )latest_bittest.rtc_status=PASSED;
-    //display test
-    latest_bittest.display_status=PASSED;
-    //gpio i2c expender test
-    if ( file_exists("/data/ledred") >-1 ) latest_bittest.gpioexpender_status=PASSED;
-    //fuelgauge test
-    char *fuelgaugebuffer = malloc(10 * sizeof(char));
-    if ( atoi(read_file_data("/sys/class/power_supply/battery/voltage_now",fuelgaugebuffer,10)) >0 ) latest_bittest.fuelgauge_status=PASSED;
-    free(fuelgaugebuffer);
-    //FW CRC test
-    if ( crc_passed(FW_CONFIG_FILE_PATH) == 0) latest_bittest.fw_crc_status=PASSED;
-    //APK CRC test
-    if ( crc_passed(APK_CONFIG_FILE_PATH) == 0) latest_bittest.apk_crc_status=PASSED;
-    //I2C test
-    if (latest_bittest.gpioexpender_status==PASSED||latest_bittest.fuelgauge_status==PASSED||latest_bittest.battery_status==PASSED) latest_bittest.i2c_status=PASSED;
-    strftime(latest_bittest.timestamp, 1000, "%c" , p);
-    sprintf(return_reply,"%s",return_current_bit_status(return_reply));
-    if (latest_bittest.ble_status==PASSED  &&
-    latest_bittest.rtc_status==PASSED  
-    && latest_bittest.gpioexpender_status==PASSED && latest_bittest.fw_crc_status==PASSED && latest_bittest.apk_crc_status==PASSED)
-    {
-        printf("\n\n*** Bit test Passed! ***\n\n");
-    }
+    latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path,i2c_pmic_status_address,i2c_pmic_status_register);
+    latest_bittest.i2c_fuelgauge_status = check_i2c_validity(i2c0_path,i2c_fuelgauge_status_address,i2c_fuelgauge_status_register);
+    latest_bittest.i2c_max77818top_status = check_i2c_validity(i2c0_path,i2c_max77818top_status_address,i2c_max77818top_status_register);
+    latest_bittest.i2c_max77818charger_status = check_i2c_validity(i2c0_path,i2c_max77818charger_status_address,i2c_max77818charger_status_register);
+    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c0_path,i2c_displaytouchpanel_status_address,i2c_displaytouchpanel_status_register);
+    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_max77816dc3_status_address,i2c_max77816dc3_status_register);
+    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_rtc_status_address,i2c_rtc_status_register);
+    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_rtcmemblock0_status_address,i2c_rtcmemblock0_status_register);
+    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_rtcmemblock1_status_address,i2c_rtcmemblock1_status_register);
+    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_cradletempsensor_status_address,i2c_cradletempsensor_status_register);
+    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_ioexpender_status_address,i2c_ioexpender_status_register);
+    if ( file_exists("/dev/hci_tty") >-1 )
+    	latest_bittest.ble_status=PASSED;
     else
-    {
-    	
-        printf("\n\n*** Bit test Failed! ***\n\n");
-    }
-    
-
-
+    	latest_bittest.ble_status=FAILED;
+    char *batterybuffer = malloc(10 * sizeof(char));
+    if ( atoi(read_file_data("/sys/class/power_supply/battery/present",batterybuffer,10)) >0 )
+    	latest_bittest.battery_status=PASSED;
+    else
+    	latest_bittest.battery_status=FAILED;
+    free(batterybuffer);
+    if ( crc_passed(FW_CONFIG_FILE_PATH) == 0)
+    	latest_bittest.fw_crc_status=PASSED;
+    else
+    	latest_bittest.fw_crc_status=FAILED;
+    if ( crc_passed(APK_CONFIG_FILE_PATH) == 0)
+    	latest_bittest.apk_crc_status=PASSED;
+    else
+    	latest_bittest.apk_crc_status=FAILED;
+    strftime(latest_bittest.timestamp, 1000, "%c" , p);
+    return_current_bit_status(return_reply);
+    printf("\n\n*** Bit testing procedure endded! ***\n\n");
 }
 
 
@@ -643,20 +653,6 @@ void *connection_handler(void *socket_desc)
 		    send(sock , commandFile.value , sizeof(commandFile.value),0);
             commandFile.value[0] = '\0';
 		}
-    }
-    else if(findSubstr(client_message, "i2c_read")>-1)
-    {
-    	/*action is reading a I2C register
-    	example: i2c_read:/dev/i2c-1;0x1b;0x5d
-    	*/
-    	struct file_action commandFile;
-		strcpy( commandFile.name, client_message+findSubstr(client_message, ":") );
-		result=read_i2c(commandFile.name);
-    	#ifdef ServerDebug
-    	printf("value read:%04x\n",result);
-    	#endif
-		sprintf(commandFile.value, "%04x\n", result);
-    	write(sock , commandFile.value , strlen(commandFile.value));
     }
     else if(findSubstr(client_message, "write_bit:bittest")>-1)
     {
