@@ -41,7 +41,7 @@
 #define SOCKET_MESSAGE_MAX_LENGTH 2000
 #define REPLY_ACK "ACK"
 #define REPLY_NACK "NACK"
-#define API_VERSION "3"
+#define API_VERSION "4"
 
 //i2c bit test address, paths, registers definition
 
@@ -82,8 +82,8 @@ configuration config;
 
 enum BITRESULT            /* Defines results  */  
 {  
-    PASSED = 0, 
-    FAILED      
+    FAILED = 0, 
+    PASSED      
 } ;
 
 
@@ -469,12 +469,12 @@ void bittest_init_full()
     latest_bittest.i2c_max77818top_status = check_i2c_validity(i2c0_path,i2c_max77818top_status_address,i2c_max77818top_status_register);
     latest_bittest.i2c_max77818charger_status = check_i2c_validity(i2c0_path,i2c_max77818charger_status_address,i2c_max77818charger_status_register);
     latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c0_path,i2c_displaytouchpanel_status_address,i2c_displaytouchpanel_status_register);
-    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_max77816dc3_status_address,i2c_max77816dc3_status_register);
-    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_rtc_status_address,i2c_rtc_status_register);
-    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_rtcmemblock0_status_address,i2c_rtcmemblock0_status_register);
-    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_rtcmemblock1_status_address,i2c_rtcmemblock1_status_register);
-    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_cradletempsensor_status_address,i2c_cradletempsensor_status_register);
-    latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c2_path,i2c_ioexpender_status_address,i2c_ioexpender_status_register);
+    latest_bittest.i2c_max77816dc3_status = check_i2c_validity(i2c2_path,i2c_max77816dc3_status_address,i2c_max77816dc3_status_register);
+    latest_bittest.i2c_rtc_status = check_i2c_validity(i2c2_path,i2c_rtc_status_address,i2c_rtc_status_register);
+    latest_bittest.i2c_rtcmemblock0_status = check_i2c_validity(i2c2_path,i2c_rtcmemblock0_status_address,i2c_rtcmemblock0_status_register);
+    latest_bittest.i2c_rtcmemblock1_status = check_i2c_validity(i2c2_path,i2c_rtcmemblock1_status_address,i2c_rtcmemblock1_status_register);
+    latest_bittest.i2c_cradletempsensor_status = check_i2c_validity(i2c2_path,i2c_cradletempsensor_status_address,i2c_cradletempsensor_status_register);
+    latest_bittest.i2c_ioexpender_status = check_i2c_validity(i2c2_path,i2c_ioexpender_status_address,i2c_ioexpender_status_register);
     if ( file_exists("/dev/hci_tty") >-1 )
     	latest_bittest.ble_status=PASSED;
     else
