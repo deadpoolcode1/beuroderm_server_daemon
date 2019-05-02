@@ -22,6 +22,8 @@
 #define FW_CONFIG_FILE_PATH "/system/bin/config.file"
 #define APK_CONFIG_FILE_PATH "/sdcard/NEURODERM/cs_config.json"
 #define BIT_I2C_PMIC "BIT_I2C_PMIC"
+#define FW_CONFIG_FILE_CRC_PATH "data/cs_fw_crc"
+#define APK_CONFIG_FILE_CRC_PATH "data/cs_apk_crc"
 #define BIT_I2C_FUELGAUGE "BIT_I2C_FUELGAUGE"
 #define BIT_I2C_MAX77818TOP "BIT_I2C_MAX77818TOP"
 #define BIT_I2C_MAX77818CHARGER "BIT_I2C_MAX77818CHARGER"
@@ -193,10 +195,13 @@ void sig_handler(int signo)
 /*
 function to handle opening a file 
 */
-int open_file(char *filename)
+int open_file(char *filename, uint8_t create_if_not_exist)
 {
 	int fd;
-	fd = open(filename, O_RDWR);
+	if (create_if_not_exist)
+		fd = open(filename, O_RDWR | O_CREAT);
+	else
+		fd = open(filename, O_RDWR);
 	if (fd < 0) 
 	{
          	printf(" - Can not open file : %s\n", filename);
@@ -279,7 +284,6 @@ char* read_file_data_no_space(char *filename,char *buffer, size_t buffer_size)
 	return buffer;
 }
 
-
 int file_exists(char *filename)
 {
     int fd;
@@ -342,7 +346,24 @@ char* filter_crc_string(char* input)
     return output;
 }
 
-int crc_passed(char * filename)
+
+int place_crc_if_not_exist(char *filename, unsigned short crc)
+{
+	int fd;
+	char write_data[10];
+	if( access( filename, F_OK ) != -1 )
+		return 0;
+    	printf("file not exists");
+	fd = open_file(filename, 1);
+	if (fd<0) 
+		return -1;
+	sprintf(write_data,"%d",crc);
+	printf("write_data: %s", write_data);
+	write( fd, write_data, strlen(write_data) );
+	close(fd);
+	return 0;		
+}
+int crc_passed(char *filename, char *crc_filename)
 {
     size_t buffer_size = 150;
     char *buffer;
@@ -380,27 +401,9 @@ int crc_passed(char * filename)
     buffer_filtered[0]='\0';
     while(-1 != getline(&buffer, &buffer_size, file))
     {
-        char *pch = strstr(buffer, "crc");
-        if(!pch) // crc line does not get included in crc calculation
-        {
+
 		sprintf(buffer_filtered,"%s",filter_crc_string(buffer));
  		sprintf(&full_buffer[strlen(full_buffer)], "%s", buffer_filtered);
-        }
-     else
-         {
-
-        	char *p = buffer;
-			while (*p) 
-			{ // While there are more characters to process...
-    			if (isdigit(*p)) 
-    			{ // Upon finding a digit, ...
-        			val = strtol(p, &p, 10); // Read a number, ...
-        			printf("\r\n%s CRC:%ld\n", filename, val); // and print it.
-   				 } 
-   				 else 
-        			p++;
-    	}
-      }
     }
     fflush(stdout);
 
@@ -410,7 +413,7 @@ int crc_passed(char * filename)
     //calculate CRC
     length=strlen(full_buffer);
     while (length--){
-	if (*data_p +1 == '\r'  || *data_p +1 == '\n' || *data_p +1 == ' ')
+	if (*data_p +1 == '\r'  || *data_p +1 == '\n')
 	{
 		data_p++;
 		continue;
@@ -420,6 +423,28 @@ int crc_passed(char * filename)
         crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
     }
     printf ("%s CRC result: %d\r\n",filename, crc);
+//now read expected CRC 
+    place_crc_if_not_exist(crc_filename,crc);
+    file = fopen(crc_filename, "r");
+    // make sure the file opened properly
+    if(NULL == file)
+    {
+        fprintf(stderr, "Cannot open file: %s\n", crc_filename);
+        return -1;
+    }
+    getline(&buffer, &buffer_size, file);
+    fclose(file);
+	char *p = buffer;
+			while (*p) 
+			{ // While there are more characters to process...
+    			if (isdigit(*p)) 
+    			{ // Upon finding a digit, ...
+        			val = strtol(p, &p, 10); // Read a number, ...
+        			printf("\r\n%s CRC:%ld\n", crc_filename, val); // and print it.
+   				 } 
+   				 else 
+        			p++;
+			}
     if (crc==val)
     	return 0;
     else return -1;
@@ -493,11 +518,11 @@ void bittest_init_full()
     else
     	latest_bittest.rtc_functional_status=FAILED;
     free(filebufferl);
-    if ( crc_passed(FW_CONFIG_FILE_PATH) == 0)
+    if ( crc_passed(FW_CONFIG_FILE_PATH, FW_CONFIG_FILE_CRC_PATH) == 0)
     	latest_bittest.fw_crc_status=PASSED;
     else
     	latest_bittest.fw_crc_status=FAILED;
-    if ( crc_passed(APK_CONFIG_FILE_PATH) == 0)
+    if ( crc_passed(APK_CONFIG_FILE_PATH, APK_CONFIG_FILE_CRC_PATH) == 0)
     	latest_bittest.apk_crc_status=PASSED;
     else
     	latest_bittest.apk_crc_status=FAILED;
@@ -618,7 +643,7 @@ void *connection_handler(void *socket_desc)
 		#ifdef ServerDebug
 		printf("value:%s\n",commandFile.value);
 		#endif
-		fd = open_file(commandFile.name);
+		fd = open_file(commandFile.name, 0);
 		if (fd<0) 
 		{
 			strcpy(returnMsg,REPLY_NACK);
@@ -642,7 +667,7 @@ void *connection_handler(void *socket_desc)
 		#ifdef ServerDebug
 		printf("file to read:%s\n",commandFile.name);
         #endif
-        fd = open_file(commandFile.name);
+        fd = open_file(commandFile.name, 0);
 		if (fd<0) 
         {
             strcpy(error_msg, "Error: Unable to read the value");
