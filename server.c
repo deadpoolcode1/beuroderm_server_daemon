@@ -413,7 +413,7 @@ int crc_passed(char *filename, char *crc_filename)
     //calculate CRC
     length=strlen(full_buffer);
     while (length--){
-	if (*data_p +1 == '\r'  || *data_p +1 == '\n')
+	if (*data_p +1 == '\r'  || *data_p +1 == '\n' || *data_p +1 == ' ')
 	{
 		data_p++;
 		continue;
