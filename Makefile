@@ -30,6 +30,11 @@ unittest: unittest.c libjsmn.a
 unittest_mac: unittest.c libjsmn-mac.a
 	$(CCMAC) $(CFLAGS)  -o unittest.o unittest.c libjsmn-mac.a
 
+src=$(wildcard *.cpp *.hpp *.c *.h */*.c */*.cpp */*.h */*.hpp)
+
+astyle:
+	astyle --style=linux --lineend=linux --indent=force-tab=8 --pad-header --pad-oper --keep-one-line-blocks \
+                --unpad-paren ${src}
 clean :
 	$(RM) *.o
 

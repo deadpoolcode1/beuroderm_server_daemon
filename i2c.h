@@ -11,9 +11,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
- __s32 i2c_smbus_access(int file, char read_write, __u8 command,
-                                     int size, union i2c_smbus_data *data);
+__s32 i2c_smbus_access(int file, char read_write, __u8 command,
+		       int size, union i2c_smbus_data *data);
 
 
- __s32 i2c_smbus_read_byte_data(int file, __u8 command);
+__s32 i2c_smbus_read_byte_data(int file, __u8 command);
 #endif

@@ -25,7 +25,7 @@
 #include <fcntl.h>
 
 static inline __s32 i2c_smbus_access(int file, char read_write, __u8 command,
-                                     int size, union i2c_smbus_data *data)
+				     int size, union i2c_smbus_data *data)
 {
 	struct i2c_smbus_ioctl_data args;
 
@@ -33,15 +33,15 @@ static inline __s32 i2c_smbus_access(int file, char read_write, __u8 command,
 	args.command = command;
 	args.size = size;
 	args.data = data;
-	return ioctl(file,I2C_SMBUS,&args);
+	return ioctl(file, I2C_SMBUS, &args);
 }
 
 
 static inline __s32 i2c_smbus_read_byte_data(int file, __u8 command)
 {
 	union i2c_smbus_data data;
-	if (i2c_smbus_access(file,I2C_SMBUS_READ,command,
-	                     I2C_SMBUS_BYTE_DATA,&data))
+	if (i2c_smbus_access(file, I2C_SMBUS_READ, command,
+			     I2C_SMBUS_BYTE_DATA, &data))
 		return -1;
 	else
 		return 0x0FF & data.byte;
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
 
 	file = open(path, O_RDWR);
 	if (file < 0)
-		err(errno, "Tried to open '%s'", path); 
+		err(errno, "Tried to open '%s'", path);
 
 	rc = ioctl(file, I2C_SLAVE_FORCE, addr);
 	if (rc < 0)
@@ -72,7 +72,7 @@ int main(int argc, char **argv)
 	data = i2c_smbus_read_byte_data(file, reg);
 
 	printf("%s: device 0x%02x at address 0x%02x: 0x%02x\n",
-			path, addr, reg, data);
+	       path, addr, reg, data);
 
 }
 
