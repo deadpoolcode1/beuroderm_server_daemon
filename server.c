@@ -790,7 +790,7 @@ void *connection_handler(void *socket_desc)
 			//Response: {"temp_cpu": "temp","temp_wc": "temp"}
 			returnMsg[0] = '\0';
 			read_file_data_no_space("/sys/class/thermal/thermal_zone1/temp", read1, size_of_array_read_file);
-			read_file_data_no_space("/sys/class/thermal/thermal_zone1/temp", read2, size_of_array_read_file);
+			read_file_data_no_space("/sys/class/hwmon/hwmon1/temp1_input", read2, size_of_array_read_file);
 			sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\"} \n", "temp_cpu", read1
 				, "temp_wc", read2);
 			write(sock , returnMsg , strlen(returnMsg));
