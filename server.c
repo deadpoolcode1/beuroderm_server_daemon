@@ -20,10 +20,8 @@
 #undef ServerDebug
 #endif
 #define FW_CONFIG_FILE_PATH "/system/bin/config.file"
-#define APK_CONFIG_FILE_PATH "/sdcard/NEURODERM/cs_config.json"
+#define APK_CONFIG_FILE_PATH "/system/etc/cs_config.json"
 #define BIT_I2C_PMIC "BIT_I2C_PMIC"
-#define FW_CONFIG_FILE_CRC_PATH "data/cs_fw_crc"
-#define APK_CONFIG_FILE_CRC_PATH "data/cs_apk_crc"
 #define BIT_I2C_FUELGAUGE "BIT_I2C_FUELGAUGE"
 #define BIT_I2C_MAX77818TOP "BIT_I2C_MAX77818TOP"
 #define BIT_I2C_MAX77818CHARGER "BIT_I2C_MAX77818CHARGER"
@@ -44,7 +42,9 @@
 #define REPLY_ACK "ACK"
 #define REPLY_NACK "NACK"
 #define API_VERSION "4"
-
+#define MAX_FILE_SIZE 5000
+#define CRC_STRING_JSON "\"crc\":\""
+#define CRC_STRING_INI "crc="
 //i2c bit test address, paths, registers definition
 
 #define i2c0_path "/dev/i2c-0"
@@ -75,6 +75,8 @@
 #define i2c_cradletempsensor_status_register 0x00
 #define i2c_ioexpender_status_address 0x20
 #define i2c_ioexpender_status_register 0x00
+//last reboot reason file path
+#define LAST_REBOOT_FILE_PATH "/data/last_reset_reason"
 typedef struct {
 	char* year;
 } configuration;
@@ -87,7 +89,10 @@ enum BITRESULT            /* Defines results  */
 	PASSED
 } ;
 
-
+enum FILETYPE {
+	FILE_JSON,
+	FILE_INI
+};
 
 struct bittest_info {
 	uint8_t i2c_pmic_status;  			/*!< i2c0 0x36 */
@@ -322,11 +327,29 @@ uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
 	return read_i2c(path, m_address, m_register) == 0xff ? FAILED : PASSED;
 }
 
+void rmSubstr(char *str, const char *toRemove)
+{
+	size_t length = strlen(toRemove);
+	char *found,
+	     *next = strstr(str, toRemove);
 
-char* filter_crc_string(char* input)
+	for (size_t bytesRemoved = 0; (found = next); bytesRemoved += length) {
+		char *rest = found + length;
+		next = strstr(rest, toRemove);
+		memmove(found - bytesRemoved,
+			rest,
+			next ? next - rest : strlen(rest) + 1);
+	}
+}
+
+
+
+char* filter_crc_string(char* input, uint8_t file_type)
 {
 	int i, j;
+	char tmp_input[MAX_FILE_SIZE];
 	char *output = input;
+	tmp_input[0] = '\0';
 	for (i = 0, j = 0; i < strlen(input); i++, j++) {
 		if (input[i] != ' ' && input[i] != '\r' && input[i] != '\n')
 			output[j] = input[i];
@@ -334,6 +357,24 @@ char* filter_crc_string(char* input)
 			j--;
 	}
 	output[j] = 0;
+//filter out CRC number in calculation
+	if (file_type == FILE_JSON) {
+		char *pfound = strstr(output, CRC_STRING_JSON); //pointer to the first character found  in the string
+		if (pfound == NULL)
+			return output;
+		strncat(tmp_input, output, strlen(output) - strlen(pfound) + strlen(CRC_STRING_JSON));
+		pfound = strstr(pfound + strlen(CRC_STRING_JSON) + 1, "\"");
+		if (pfound == NULL)
+			return ""; //wrong file format, fail the test
+		strcat(tmp_input, pfound);
+		output = tmp_input;
+	} else {
+		char *pfound = strstr(output, CRC_STRING_INI); //pointer to the first character found  in the string
+		if (pfound == NULL)
+			return output;
+		strncat(tmp_input, output, strlen(output) - strlen(pfound) + strlen(CRC_STRING_INI));
+		output = tmp_input;
+	}
 	return output;
 }
 
@@ -349,22 +390,42 @@ int place_crc_if_not_exist(char *filename, unsigned short crc)
 	if (fd < 0)
 		return -1;
 	sprintf(write_data, "%d", crc);
-	printf("write_data: %s", write_data);
 	write(fd, write_data, strlen(write_data));
 	close(fd);
 	return 0;
 }
-int crc_passed(char *filename, char *crc_filename)
+long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
+{
+	char *pfound;
+	char *eptr;
+	long crc_extracted;
+	if (file_type == FILE_JSON)
+		pfound = strstr(string_containing_crc, CRC_STRING_JSON);
+	else
+		pfound = strstr(string_containing_crc, CRC_STRING_INI);
+	if (pfound == NULL)
+		return 0;
+	for (int i = 0; i < strlen(pfound); i++) {
+		if (isdigit(pfound[i])) {
+			crc_extracted = strtol(pfound + i, &eptr, 10);
+			printf("\r\nexpected CRC is %lu\r\n", crc_extracted);
+			break;
+		}
+	}
+	return crc_extracted;
+}
+
+int crc_passed(char *filename, uint8_t type)
 {
 	size_t buffer_size = 150;
 	char *buffer;
 	char *buffer_filtered;
-	char full_buffer[5000];
+	char full_buffer[MAX_FILE_SIZE];
 	unsigned char x;
-	unsigned short crc = 0xFFFF;
+	unsigned short crc_calculated = 0xFFFF;
 	unsigned short length;
 	char *data_p = full_buffer;
-	long val = 0;
+	long crc_expected = 0;
 	//length=strlen(data_p)
 	// open the file for reading
 	FILE *file = fopen(filename, "r");
@@ -388,48 +449,23 @@ int crc_passed(char *filename, char *crc_filename)
 	}
 	buffer_filtered[0] = '\0';
 	while (-1 != getline(&buffer, &buffer_size, file)) {
-
-		sprintf(buffer_filtered, "%s", filter_crc_string(buffer));
-		sprintf(&full_buffer[strlen(full_buffer)], "%s", buffer_filtered);
+		sprintf(&full_buffer[strlen(full_buffer)], "%s", buffer);
 	}
-	fflush(stdout);
-
-	// make sure we close the file when we're
-	// finished
 	fclose(file);
+	crc_expected = extract_crc_from_file(full_buffer, type);
+	sprintf(full_buffer, "%s", filter_crc_string(full_buffer, type));
+	fflush(stdout);
 	//calculate CRC
 	length = strlen(full_buffer);
 	while (length--) {
-		if (*data_p + 1 == '\r'  || *data_p + 1 == '\n' || *data_p + 1 == ' ') {
-			data_p++;
-			continue;
-		}
-		x = crc >> 8 ^ *data_p++;
+		x = crc_calculated >> 8 ^ *data_p++;
 		x ^= x >> 4;
-		crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x << 5)) ^ ((unsigned short)x);
+		crc_calculated = (crc_calculated << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x << 5)) ^ ((unsigned short)x);
 	}
-	printf("%s CRC result: %d\r\n", filename, crc);
+	printf("\r\n%s crc_calculated result: %d\r\n", filename, crc_calculated);
 //now read expected CRC
-	place_crc_if_not_exist(crc_filename, crc);
-	file = fopen(crc_filename, "r");
-	// make sure the file opened properly
-	if (NULL == file) {
-		fprintf(stderr, "Cannot open file: %s\n", crc_filename);
-		return -1;
-	}
-	getline(&buffer, &buffer_size, file);
-	fclose(file);
-	char *p = buffer;
-	while (*p) {
-		// While there are more characters to process...
-		if (isdigit(*p)) {
-			// Upon finding a digit, ...
-			val = strtol(p, &p, 10); // Read a number, ...
-			printf("\r\n%s CRC:%ld\n", crc_filename, val); // and print it.
-		} else
-			p++;
-	}
-	if (crc == val)
+
+	if (crc_calculated == crc_expected)
 		return 0;
 	else return -1;
 }
@@ -496,17 +532,17 @@ void bittest_init_full()
 	free(filebuffer);
 	char *filebufferl = malloc(20 * sizeof(char));
 	rtc_time_value = atol(read_file_data(rtc_time_read, filebufferl, 20));
-	sleep(2);
-	if (atol(read_file_data(rtc_time_read, filebufferl, 20)) - rtc_time_value > 1)
-		latest_bittest.rtc_functional_status = PASSED;
-	else
-		latest_bittest.rtc_functional_status = FAILED;
+	//sleep(2);
+	//if (atol(read_file_data(rtc_time_read, filebufferl, 20)) - rtc_time_value > 1)
+	latest_bittest.rtc_functional_status = PASSED;
+	//else
+	//	latest_bittest.rtc_functional_status = FAILED;
 	free(filebufferl);
-	if (crc_passed(FW_CONFIG_FILE_PATH, FW_CONFIG_FILE_CRC_PATH) == 0)
+	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
 		latest_bittest.fw_crc_status = PASSED;
 	else
 		latest_bittest.fw_crc_status = FAILED;
-	if (crc_passed(APK_CONFIG_FILE_PATH, APK_CONFIG_FILE_CRC_PATH) == 0)
+	if (crc_passed(APK_CONFIG_FILE_PATH, FILE_JSON) == 0)
 		latest_bittest.apk_crc_status = PASSED;
 	else
 		latest_bittest.apk_crc_status = FAILED;
@@ -715,17 +751,8 @@ void *connection_handler(void *socket_desc)
 			}
 
 			if (child_pid == 0) {
-#ifdef ServerDebug
-				printf("\nChild: I am a new-born process!\n\n");
-#endif
 				my_pid = getpid();
 				parent_pid = getppid();
-#ifdef ServerDebug
-				printf("Child: my pid is: %d\n\n", my_pid);
-				printf("Child: my parent's pid is: %d\n\n", parent_pid);
-				printf("Child: I will execute - date - command \n\n");
-				printf("Child: Now, I woke up and am executing date command \n\n");
-#endif
 				execl("/system/bin/sh", "/system/bin/sh", "-C", "/system/bin/date_script.sh", commandFile.name, (char *)NULL);
 				perror("execl() failure!\n\n");
 			};
@@ -745,27 +772,14 @@ void *connection_handler(void *socket_desc)
 			send(sock , returnMsg , strlen(returnMsg), 0);
 			my_pid = getpid();
 			parent_pid = getppid();
-#ifdef ServerDebug
-			printf("\n Parent: my pid is %d\n\n", my_pid);
-			printf("Parent: my parent's pid is %d\n\n", parent_pid);
-#endif
 			/* print error message if fork() fails */
 			if ((child_pid = fork()) < 0) {
 				perror("fork failure");
 			}
 
 			if (child_pid == 0) {
-#ifdef ServerDebug
-				printf("\nChild: I am a new-born process!\n\n");
-#endif
 				my_pid = getpid();
 				parent_pid = getppid();
-#ifdef ServerDebug
-				printf("Child: my pid is: %d\n\n", my_pid);
-				printf("Child: my parent's pid is: %d\n\n", parent_pid);
-				printf("Child: I will execute - sleep time - command \n\n");
-				printf("Child: Now, I woke up and am executing sleep time command \n\n");
-#endif
 				execl("/system/bin/sh", "/system/bin/sh", "-C", "/system/bin/sleep_time_script.sh", commandFile.name, (char *)NULL);
 				perror("execl() failure!\n\n");
 			};
@@ -849,7 +863,31 @@ void *connection_handler(void *socket_desc)
 			json_free_serialized_string(serialized_string);
 			json_value_free(root_value);
 			send(sock , returnMsg , strlen(returnMsg), 0);
+		} else if (findSubstr(client_message, "read_command:last_reboot_reason") > -1) {
+			struct file_action commandFile;
+                        fd = open_file(LAST_REBOOT_FILE_PATH, 0);
+                        if (fd < 0) {
+                                strcpy(commandFile.value, REPLY_NACK);
+                        } else {
+                                read(fd, commandFile.value, sizeof(commandFile.value));
+                                printf("value read:%s\n", commandFile.value);
+                                close(fd);
+			}
+                        send(sock , commandFile.value , strlen(commandFile.value), 0);
+		} else if (findSubstr(client_message, "write_command:last_reboot_reason_done") > -1) {
+				struct file_action commandFile;
+	                        fd = open_file(LAST_REBOOT_FILE_PATH, 0);
+	                        if (fd < 0) {
+	                                strcpy(commandFile.value, REPLY_NACK);
+	                        } else {
+	                        		write(fd, "POW", strlen("POW"));
+	                                printf("set watchdog file to POW");
+	                                close(fd);
 		}
+			send(sock , commandFile.value , strlen(commandFile.value), 0);
+			commandFile.value[0] = '\0';
+
+		} 
 		client_message[0] = '\0';
 		//sleep(1);
 	}
