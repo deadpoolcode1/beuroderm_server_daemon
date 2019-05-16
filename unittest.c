@@ -210,12 +210,14 @@ int main(int argc , const char *argv[])
 
 	if (r < 0) {
 		printf("Failed to parse JSON: %d\n", r);
+		fclose(fp);
 		return 1;
 	}
 
 	/* Assume the top-level element is an object */
 	if (r < 1 || t[0].type != JSMN_OBJECT) {
 		printf("Object expected\n");
+		fclose(fp);
 		return 1;
 	}
 
@@ -230,6 +232,7 @@ int main(int argc , const char *argv[])
 				checkMessageValues(delay_on, response_on, &delay, &response);
 
 				if (sendMessage(inputAddress, message, delay, response, response_on) == false) {
+					fclose(fp);
 					return 1;
 				}
 
@@ -268,6 +271,7 @@ int main(int argc , const char *argv[])
 
 		if (msg_on > 1 || response_on > 1 || delay_on > 1) {
 			printf("Error: json not in the correct format\n");
+			fclose(fp);
 			return 1;
 		}
 
@@ -279,6 +283,7 @@ int main(int argc , const char *argv[])
 		checkMessageValues(delay_on, response_on, &delay, &response);
 
 		if (sendMessage(inputAddress, message, delay, response, response_on) == false) {
+			fclose(fp);
 			return 1;
 		}
 

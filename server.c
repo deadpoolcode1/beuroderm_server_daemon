@@ -361,7 +361,7 @@ char* filter_crc_string(char* input, uint8_t file_type)
 	if (file_type == FILE_JSON) {
 		char *pfound = strstr(output, CRC_STRING_JSON); //pointer to the first character found  in the string
 		if (pfound == NULL)
-			return output;
+			goto exit_filter_crc_string;
 		strncat(tmp_input, output, strlen(output) - strlen(pfound) + strlen(CRC_STRING_JSON));
 		pfound = strstr(pfound + strlen(CRC_STRING_JSON) + 1, "\"");
 		if (pfound == NULL)
@@ -371,11 +371,12 @@ char* filter_crc_string(char* input, uint8_t file_type)
 	} else {
 		char *pfound = strstr(output, CRC_STRING_INI); //pointer to the first character found  in the string
 		if (pfound == NULL)
-			return output;
+			goto exit_filter_crc_string;
 		strncat(tmp_input, output, strlen(output) - strlen(pfound) + strlen(CRC_STRING_INI));
 		output = tmp_input;
 	}
-	return output;
+exit_filter_crc_string: sprintf (input,"%s",output);
+	return (input);
 }
 
 
@@ -464,7 +465,8 @@ int crc_passed(char *filename, uint8_t type)
 	}
 	printf("\r\n%s crc_calculated result: %d\r\n", filename, crc_calculated);
 //now read expected CRC
-
+	free (buffer);
+	free (buffer_filtered);
 	if (crc_calculated == crc_expected)
 		return 0;
 	else return -1;
@@ -588,7 +590,7 @@ int main(int argc , char *argv[])
 		puts("server Connection accepted");
 		//Reply to the client
 		pthread_t sniffer_thread;
-		new_sock = malloc(1);
+		new_sock = malloc(sizeof(int));
 		*new_sock = new_socket;
 		if (pthread_create(&sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0) {
 			perror("server could not create thread");
@@ -865,29 +867,29 @@ void *connection_handler(void *socket_desc)
 			send(sock , returnMsg , strlen(returnMsg), 0);
 		} else if (findSubstr(client_message, "read_command:last_reboot_reason") > -1) {
 			struct file_action commandFile;
-                        fd = open_file(LAST_REBOOT_FILE_PATH, 0);
-                        if (fd < 0) {
-                                strcpy(commandFile.value, REPLY_NACK);
-                        } else {
-                                read(fd, commandFile.value, sizeof(commandFile.value));
-                                printf("value read:%s\n", commandFile.value);
-                                close(fd);
+			fd = open_file(LAST_REBOOT_FILE_PATH, 0);
+			if (fd < 0) {
+				strcpy(commandFile.value, REPLY_NACK);
+			} else {
+				read(fd, commandFile.value, sizeof(commandFile.value));
+				printf("value read:%s\n", commandFile.value);
+				close(fd);
 			}
-                        send(sock , commandFile.value , strlen(commandFile.value), 0);
+			send(sock , commandFile.value , strlen(commandFile.value), 0);
 		} else if (findSubstr(client_message, "write_command:last_reboot_reason_done") > -1) {
-				struct file_action commandFile;
-	                        fd = open_file(LAST_REBOOT_FILE_PATH, 0);
-	                        if (fd < 0) {
-	                                strcpy(commandFile.value, REPLY_NACK);
-	                        } else {
-	                        		write(fd, "POW", strlen("POW"));
-	                                printf("set watchdog file to POW");
-	                                close(fd);
-		}
+			struct file_action commandFile;
+			fd = open_file(LAST_REBOOT_FILE_PATH, 0);
+			if (fd < 0) {
+				strcpy(commandFile.value, REPLY_NACK);
+			} else {
+				write(fd, "POW", strlen("POW"));
+				printf("set watchdog file to POW");
+				close(fd);
+			}
 			send(sock , commandFile.value , strlen(commandFile.value), 0);
 			commandFile.value[0] = '\0';
 
-		} 
+		}
 		client_message[0] = '\0';
 		//sleep(1);
 	}
