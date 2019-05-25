@@ -76,7 +76,7 @@
 #define i2c_ioexpender_status_address 0x20
 #define i2c_ioexpender_status_register 0x00
 //last reboot reason file path
-#define LAST_REBOOT_FILE_PATH "/data/last_reset_reason"
+#define LAST_REBOOT_FILE_PATH "/data/last_reset_reason_persistent"
 typedef struct {
 	char* year;
 } configuration;
@@ -375,7 +375,8 @@ char* filter_crc_string(char* input, uint8_t file_type)
 		strncat(tmp_input, output, strlen(output) - strlen(pfound) + strlen(CRC_STRING_INI));
 		output = tmp_input;
 	}
-exit_filter_crc_string: sprintf (input,"%s",output);
+exit_filter_crc_string:
+	sprintf(input, "%s", output);
 	return (input);
 }
 
@@ -880,15 +881,14 @@ void *connection_handler(void *socket_desc)
 			struct file_action commandFile;
 			fd = open_file(LAST_REBOOT_FILE_PATH, 0);
 			if (fd < 0) {
-				strcpy(commandFile.value, REPLY_NACK);
+				send(sock , REPLY_NACK , strlen(REPLY_NACK), 0);
 			} else {
-				write(fd, "POW", strlen("POW"));
-				printf("set watchdog file to POW");
+				send(sock , REPLY_ACK , strlen(REPLY_ACK), 0);
+				write(fd, "POR", strlen("POR"));
+				printf("set watchdog file to 0 since state has been read");
 				close(fd);
 			}
-			send(sock , commandFile.value , strlen(commandFile.value), 0);
 			commandFile.value[0] = '\0';
-
 		}
 		client_message[0] = '\0';
 		//sleep(1);
