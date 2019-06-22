@@ -124,13 +124,15 @@ char * trim(char * s)
 
 
 
-char* read_file_data(char *filename, char *buffer, size_t buffer_size)
+int read_file_data(char *filename, char *buffer, size_t buffer_size)
  {
        FILE *fptr = NULL;
 
        if ((fptr = fopen(filename, "r")) == NULL)
-			return "";
-        // read each line and print it to the screen
+       {
+    	   ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
+    	   return -1;
+       }        // read each line and print it to the screen
        while (-1 != getline(&buffer, &buffer_size, fptr)) {
        }
        fflush(stdout);
@@ -138,7 +140,7 @@ char* read_file_data(char *filename, char *buffer, size_t buffer_size)
         // finished
        fclose(fptr);
 
-       return buffer;
+       return 0;
  }
 
 
@@ -146,39 +148,38 @@ char* read_file_data(char *filename, char *buffer, size_t buffer_size)
 int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
  {
     char *line = NULL;
-    size_t tmp_buf_size = 100;
-    // open the file for reading
-       FILE *fptr;;
-       // make sure the file opened properly
-       if ((fptr = fopen(filename, "r")) == NULL)
-       {
-    	   ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
-    	   return -1;
-       }
-   // read each line and print it to the screen
-       while (-1 != getline(&line, &tmp_buf_size, fptr)) {
-               if (strlen(line) > 3)
-                       strcat(buffer, line);
+    FILE *fptr;;
+    if ((fptr = fopen(filename, "r")) == NULL)
+    {
+    	ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
+    	return -1;
+    }
+    while (-1 != getline(&line, &buffer_size, fptr)) {
+    	if (strlen(line) > 3)
+    		strcat(buffer, line);
     }
        fflush(stdout);
 
     // make sure we close the filewhen we're
     // finished
-       fclose(fptr);
+       safe_close_stream(fptr);
 
         return 0;
       // safe_close_stream(fptr);
  }
 
 
-char* read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
+void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 {
 	char *pos;
-	read_file_data(filename, buffer, buffer_size);
+	if (read_file_data(filename, buffer, buffer_size))
+	{
+		snprintf(buffer, buffer_size, "%s", error_message_read_file);
+		return;
+	}
 	trim(buffer);
 	if ((pos = strchr(buffer, '\n')) != NULL)
 		* pos = '\0';
-	return buffer;
 }
 
 int file_exists(char *filename)
@@ -237,7 +238,7 @@ void rmSubstr(char *str, const char *toRemove)
 
 
 
-char* filter_crc_string(char* input, uint8_t file_type)
+char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 {
 	int i, j;
 	char tmp_input[MAX_FILE_SIZE];
@@ -269,7 +270,8 @@ char* filter_crc_string(char* input, uint8_t file_type)
 		output = tmp_input;
 	}
 exit_filter_crc_string:
-	sprintf(input, "%s", output);
+    if (check_snprintf(snprintf(input, input_length, "%s", output), input_length))
+    	ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 	return (input);
 }
 
@@ -347,11 +349,13 @@ int crc_passed(char *filename, uint8_t type)
 	}
 	buffer_filtered[0] = '\0';
 	while (-1 != getline(&buffer, &buffer_size, file)) {
-		sprintf(&full_buffer[strlen(full_buffer)], "%s", buffer);
+		if (check_snprintf(snprintf(&full_buffer[strlen(full_buffer)], sizeof(full_buffer) / sizeof(char), "%s", buffer), sizeof(full_buffer) / sizeof(char)))
+			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 	}
 	fclose(file);
 	crc_expected = extract_crc_from_file(full_buffer, type);
-	sprintf(full_buffer, "%s", filter_crc_string(full_buffer, type));
+	if (check_snprintf(snprintf(full_buffer, sizeof(full_buffer) / sizeof(char), "%s", filter_crc_string(full_buffer, type, sizeof(full_buffer) / sizeof(char))), sizeof(full_buffer) / sizeof(char)))
+		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 	fflush(stdout);
 	//calculate CRC
 	length = strlen(full_buffer);
@@ -400,12 +404,13 @@ char * return_current_bit_status(char *update_string)
 
 
 //fucnction that runs bittest full test
-void bittest_init_full()
+int bittest_init_full()
 {
-	char return_reply[600];
+	char return_reply[1000];
 	uint32_t rtc_time_value;
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
+	int num_val = 0;
 	ND_printlog(ND_LOG_INFO, "\n\n*** Bit testing procedure started! ***\n\n");
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
 	latest_bittest.i2c_fuelgauge_status = check_i2c_validity(i2c0_path, i2c_fuelgauge_status_address, i2c_fuelgauge_status_register);
@@ -423,7 +428,10 @@ void bittest_init_full()
 	else
 		latest_bittest.ble_status = FAILED;
 	char *filebuffer = malloc(10 * sizeof(char));
-	if (atoi(read_file_data(battery_exists_path, filebuffer, 10)) > 0)
+	read_file_data(battery_exists_path, filebuffer, 10);
+	if (str2int(&num_val, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) != STR2INT_SUCCESS)
+		return -1;
+	if (num_val > 0)
 		latest_bittest.battery_status = PASSED;
 	else
 		latest_bittest.battery_status = FAILED;
@@ -447,6 +455,7 @@ void bittest_init_full()
 	strftime(latest_bittest.timestamp, 1000, "%c" , p);
 	return_current_bit_status(return_reply);
 	ND_printlog(ND_LOG_INFO, "\n\n*** Bit testing procedure endded! ***\n\n");
+	return 0;
 }
 
 
@@ -518,7 +527,7 @@ void *connection_handler(void *socket_desc)
 	int sock = *(int*)socket_desc;
 	int read_size;
 	char client_message[SOCKET_MESSAGE_MAX_LENGTH];
-	char returnMsg[100];
+	char returnMsg[SOCKET_MESSAGE_MAX_LENGTH];
 	int fd;
 	char error_msg[100];
 	char read1[100];
@@ -596,15 +605,16 @@ void *connection_handler(void *socket_desc)
 			//if(findSubstr(client_message, "full")>-1)
 			{
 				bittest_init_full();
-				sprintf(returnMsg, "%s", return_current_bit_status(returnMsg));
-				ND_printlog(ND_LOG_INFO, "%s\n", returnMsg);
+				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				write(sock , returnMsg , strlen(returnMsg));
 			}
 		} else if (findSubstr(client_message, "read_bit:bittest") > -1) {
 			/*action is bittest_read
 			*/
 			returnMsg[0] = '\0';
-			sprintf(returnMsg, "%s", return_current_bit_status(returnMsg));
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			write(sock , returnMsg , strlen(returnMsg));
 		} else if (findSubstr(client_message, "read_time") > -1) {
 			/*action is reading current time
@@ -674,9 +684,8 @@ void *connection_handler(void *socket_desc)
 			read_file_data_no_space("/data/fs_bsp_version", read2, size_of_array_read_file);
 			read_file_data_no_space("/data/ro_product_device", read3, size_of_array_read_file);
 			read_file_data_no_space("/data/fs_bsp_version", buffer_read_file, size_of_array_read_file);
-			sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "build_date", read1
-				, "fw_version", read2,
-				"device_name", read3);
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "build_date", read1, "fw_version", read2, "device_name", read3), sizeof(returnMsg) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			write(sock , returnMsg , strlen(returnMsg));
 		}
 
@@ -686,8 +695,8 @@ void *connection_handler(void *socket_desc)
 			returnMsg[0] = '\0';
 			read_file_data_no_space("/sys/class/thermal/thermal_zone1/temp", read1, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/hwmon/hwmon1/temp1_input", read2, size_of_array_read_file);
-			sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\"} \n", "temp_cpu", read1
-				, "temp_wc", read2);
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\"} \n", "temp_cpu", read1, "temp_wc", read2), sizeof(returnMsg) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			write(sock , returnMsg , strlen(returnMsg));
 		} else if (findSubstr(client_message, "read_command:hw_info") > -1) {
 			//Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
@@ -695,9 +704,10 @@ void *connection_handler(void *socket_desc)
 			read_file_data_no_space("/sys/class/switch/hall_detect/state", read1, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/power_supply/max77818-charger/online", read2, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/switch/hall_detect/state", read3, size_of_array_read_file);
-			sprintf(returnMsg, " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status", read1
-				, "battery_status_charging", read2,
-				"w_charger_state", read3);
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status", read1
+					, "battery_status_charging", read2,
+					"w_charger_state", read3),  sizeof(returnMsg) / sizeof(char)));
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			write(sock , returnMsg , strlen(returnMsg));
 		} else if (findSubstr(client_message, "read_command:config") > -1) {
 			client_message[0] = '\0';

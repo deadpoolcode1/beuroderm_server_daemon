@@ -24,7 +24,7 @@
 #define REPLY_ACK "ACK"
 #define REPLY_NACK "NACK"
 #define API_VERSION "4"
-#define MAX_FILE_SIZE 5000
+#define MAX_FILE_SIZE 10000
 #define CRC_STRING_JSON "\"crc\":\""
 #define CRC_STRING_INI "crc="
 //i2c bit test address, paths, registers definition

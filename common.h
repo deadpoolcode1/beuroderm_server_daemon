@@ -12,7 +12,9 @@
 #include <fcntl.h>
 
 #define EMPTY_MODE 0
+#define MAX_ALLOWED_TRAILING_SPACES 5
 #define error_message_read_file "error reading file"
+#define error_message_fw_error "error, fw unexpected behaviour\n"
 
 enum {
 	STR2INT_SUCCESS,
