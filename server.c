@@ -51,11 +51,10 @@ static int handler(void* user, const char* section, const char* name,
 {
 	configuration* pconfig = (configuration*)user;
 
-	if ((strcmp(section, "") == 0) && (strcmp(name, "start_year") == 0))
-		pconfig->year = strdup(value);
-	else
-		return 0;  /* unknown section/name, error */
-	return 1;
+	if ((strcmp(section, "") == 0) && (strcmp(name, "start_year") != 0))
+		return 1;
+	pconfig->year = strdup(value);
+	return 0;  /* unknown section/name, error */
 }
 
 /*
@@ -127,52 +126,48 @@ char * trim(char * s)
 
 char* read_file_data(char *filename, char *buffer, size_t buffer_size)
  {
-        // open the file for reading
-       FILE *file = fopen(filename, "r");
-       // make sure the file opened properly
-       if (NULL == file) {
-               ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
-               return "";
-       }
+       FILE *fptr = NULL;
 
+       if ((fptr = fopen(filename, "r")) == NULL)
+			return "";
         // read each line and print it to the screen
-       while (-1 != getline(&buffer, &buffer_size, file)) {
+       while (-1 != getline(&buffer, &buffer_size, fptr)) {
        }
        fflush(stdout);
-
         // make sure we close the filewhen we're
         // finished
-       fclose(file);
+       fclose(fptr);
 
        return buffer;
  }
 
 
 
-char* read_config_file_data(char *filename, char *buffer, size_t buffer_size)
+int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
  {
-        char *line = NULL;
-        size_t tmp_buf_size = 100;
-        // open the file for reading
-       FILE *file = fopen(filename, "r");
+    char *line = NULL;
+    size_t tmp_buf_size = 100;
+    // open the file for reading
+       FILE *fptr;;
        // make sure the file opened properly
-       if (NULL == file) {
-                ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
-               return "";
+       if ((fptr = fopen(filename, "r")) == NULL)
+       {
+    	   ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
+    	   return -1;
        }
-
-       // read each line and print it to the screen
-       while (-1 != getline(&line, &tmp_buf_size, file)) {
+   // read each line and print it to the screen
+       while (-1 != getline(&line, &tmp_buf_size, fptr)) {
                if (strlen(line) > 3)
                        strcat(buffer, line);
-        }
+    }
        fflush(stdout);
 
-        // make sure we close the filewhen we're
-        // finished
-       fclose(file);
+    // make sure we close the filewhen we're
+    // finished
+       fclose(fptr);
 
-        return buffer;
+        return 0;
+      // safe_close_stream(fptr);
  }
 
 
@@ -707,9 +702,9 @@ void *connection_handler(void *socket_desc)
 		} else if (findSubstr(client_message, "read_command:config") > -1) {
 			client_message[0] = '\0';
 			if ((read_config_file_data("/data/config.file", client_message, SOCKET_MESSAGE_MAX_LENGTH)))
-				write(sock , client_message , strlen(client_message));
-			else
 				write(sock , error_message_read_file , strlen(error_message_read_file));
+			else
+				write(sock , client_message , strlen(client_message));
 		} else if (findSubstr(client_message, "read_command:api_version") > -1) {
 			client_message[0] = '\0';
 			strcpy(returnMsg, API_VERSION);

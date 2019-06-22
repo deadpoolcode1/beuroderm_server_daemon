@@ -33,7 +33,6 @@ void chop_string(char *str, size_t n);
 int open_file(char *filename, int flags, mode_t mode);
 int safe_close(int fd);
 void safe_close_stream(FILE *fd);
-FILE *safe_open_stream(const char *filename, const char *mode);
 int safe_write_file_stream(char *filename, char *data);
 
 #endif /* COMMON_H_ */

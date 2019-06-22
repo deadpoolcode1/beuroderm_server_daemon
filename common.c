@@ -105,22 +105,13 @@ void safe_close_stream(FILE *fd)
         }
 }
 
-FILE *safe_open_stream(const char *filename, const char *mode)
-{
-	FILE *fptr;
-
-        if ((fptr = fopen(filename, mode)) == NULL)
-                ND_printlog(ND_LOG_ERROR, "Error:%s  opening file :%s for write", strerror(errno), filename);
-	return fptr;
-}
-
 int safe_write_file_stream(char *filename, char *data)
 {
-        FILE *fptr;
+        FILE *fptr = NULL;
         unsigned int ret = 0;
 
         ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
-        if ((fptr = safe_open_stream(filename, "w")) == NULL)
+ 	if ((fptr = fopen(filename, "w")) == NULL)
                 return -1;
         if (flock(fileno(fptr), LOCK_EX | LOCK_NB)) {
                 ND_printlog(ND_LOG_ERROR, "Error failed locking file");
@@ -128,13 +119,13 @@ int safe_write_file_stream(char *filename, char *data)
         }
         if ((ret = fprintf(fptr, "%s", data)) != strlen(data))
                 goto write_file_error_after_lock;
-        safe_close(fptr);
+        safe_close_stream(fptr);
         return 0;
 
 write_file_error_after_lock:
         if (flock(fileno(fptr), LOCK_UN))
                 ND_printlog(ND_LOG_ERROR, "Error failed unlocking file");
 write_file_error_after_open:
-        safe_close(fptr);
+        safe_close_stream(fptr);
         return -1;
 }
