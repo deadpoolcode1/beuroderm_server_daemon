@@ -14,7 +14,7 @@ LOCAL_C_INCLUDES += device/variscite/novodes/ND_LogLibrary
 # give module name
 LOCAL_MODULE    := server_daemon
 # list your C files to compile
-LOCAL_SRC_FILES := server.c parson/parson.c inih/ini.c i2c.c
+LOCAL_SRC_FILES := server.c parson/parson.c inih/ini.c i2c.c common.c
 # this option will build executables instead of building library for android application.
 include $(BUILD_EXECUTABLE)
 

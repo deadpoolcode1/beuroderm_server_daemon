@@ -10,6 +10,8 @@
 #include <fcntl.h>
 #include <err.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <cutils/klog.h>
 #include <ND_LogLibrary.h>
 #include "inih/ini.h"
@@ -17,6 +19,7 @@
 #include "i2c.h"
 #include "server.h"
 #include "server_log.h"
+#include "common.h"
 
 
 
@@ -43,14 +46,12 @@ struct bittest_info {
 alarms_struct alarms;
 
 
-
 static int handler(void* user, const char* section, const char* name,
 		   const char* value)
 {
 	configuration* pconfig = (configuration*)user;
 
-#define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
-	if (MATCH("", "start_year"))
+	if ((strcmp(section, "") == 0) && (strcmp(name, "start_year") == 0))
 		pconfig->year = strdup(value);
 	else
 		return 0;  /* unknown section/name, error */
@@ -111,22 +112,6 @@ void sig_handler(int signo)
 	close(socket_desc_main);
 	exit(1);
 }
-/*
-function to handle opening a file
-*/
-int open_file(char *filename, uint8_t create_if_not_exist)
-{
-	int fd;
-	if (create_if_not_exist)
-		fd = open(filename, O_RDWR | O_CREAT, 0666);
-	else
-		fd = open(filename, O_RDWR);
-	if (fd < 0) {
-		ND_printlog(ND_LOG_ERROR, "error Can not open file : %s\n", filename);
-	}
-	return fd;
-}
-
 
 char * trim(char * s)
 {
@@ -141,53 +126,55 @@ char * trim(char * s)
 
 
 char* read_file_data(char *filename, char *buffer, size_t buffer_size)
-{
-	// open the file for reading
-	FILE *file = fopen(filename, "r");
-	// make sure the file opened properly
-	if (NULL == file) {
-		ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
-		return "";
-	}
+ {
+        // open the file for reading
+       FILE *file = fopen(filename, "r");
+       // make sure the file opened properly
+       if (NULL == file) {
+               ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
+               return "";
+       }
 
-	// read each line and print it to the screen
-	while (-1 != getline(&buffer, &buffer_size, file)) {
-	}
-	fflush(stdout);
+        // read each line and print it to the screen
+       while (-1 != getline(&buffer, &buffer_size, file)) {
+       }
+       fflush(stdout);
 
-	// make sure we close the filewhen we're
-	// finished
-	fclose(file);
+        // make sure we close the filewhen we're
+        // finished
+       fclose(file);
 
-	return buffer;
-}
+       return buffer;
+ }
+
 
 
 char* read_config_file_data(char *filename, char *buffer, size_t buffer_size)
-{
-	char *line = NULL;
-	size_t tmp_buf_size = 100;
-	// open the file for reading
-	FILE *file = fopen(filename, "r");
-	// make sure the file opened properly
-	if (NULL == file) {
-		ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
-		return "";
-	}
+ {
+        char *line = NULL;
+        size_t tmp_buf_size = 100;
+        // open the file for reading
+       FILE *file = fopen(filename, "r");
+       // make sure the file opened properly
+       if (NULL == file) {
+                ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
+               return "";
+       }
 
-	// read each line and print it to the screen
-	while (-1 != getline(&line, &tmp_buf_size, file)) {
-		if (strlen(line) > 3)
-			strcat(buffer, line);
-	}
-	fflush(stdout);
+       // read each line and print it to the screen
+       while (-1 != getline(&line, &tmp_buf_size, file)) {
+               if (strlen(line) > 3)
+                       strcat(buffer, line);
+        }
+       fflush(stdout);
 
-	// make sure we close the filewhen we're
-	// finished
-	fclose(file);
+        // make sure we close the filewhen we're
+        // finished
+       fclose(file);
 
-	return buffer;
-}
+        return buffer;
+ }
+
 
 char* read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 {
@@ -294,18 +281,20 @@ exit_filter_crc_string:
 
 int place_crc_if_not_exist(char *filename, unsigned short crc)
 {
-	int fd;
+	int fd = 0, ret = -1;
 	char write_data[10];
 	if (access(filename, F_OK) != -1)
 		return 0;
-	ND_printlog(ND_LOG_ERROR, "error, file not exists");
-	fd = open_file(filename, 1);
-	if (fd < 0)
+	ND_printlog(ND_LOG_INFO, "file not exists, creating file");
+	if ((fd = open_file(filename, O_RDWR | O_CREAT, 0666)) < 0)
 		return -1;
-	sprintf(write_data, "%d", crc);
+	if (check_snprintf(snprintf(write_data, sizeof(write_data) / sizeof(char), "%d", crc),  sizeof(write_data) / sizeof(char)))
+			goto place_crc_if_not_exist_close;
 	write(fd, write_data, strlen(write_data));
+	ret = 0;
+place_crc_if_not_exist_close:
 	close(fd);
-	return 0;
+	return ret;
 }
 long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 {
@@ -472,7 +461,7 @@ int main(void)
 
 	int socket_desc , new_socket , c , *new_sock;
 	struct sockaddr_in server , client;
-	bittest_init_full();
+	//bittest_init_full();
 
 	server_daemon_kmsg_print("--- server daemon STARTED ---");
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
@@ -568,13 +557,13 @@ void *connection_handler(void *socket_desc)
 			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
 			strcpy(commandFile.value, client_message + findSubstr(client_message, "="));
 			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
-			fd = open_file(commandFile.name, 0);
+			fd = open_file(commandFile.name, O_RDWR, EMPTY_MODE);
 			if (fd < 0) {
 				strcpy(returnMsg, REPLY_NACK);
 				send(sock , returnMsg , strlen(returnMsg), 0);
 			} else {
 				write(fd, commandFile.value, strlen(commandFile.value));
-				close(fd);
+				safe_close(fd);
 				strcpy(returnMsg, REPLY_ACK);
 				send(sock , returnMsg , strlen(returnMsg), 0);
 			}
@@ -585,7 +574,7 @@ void *connection_handler(void *socket_desc)
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
 			ND_printlog(ND_LOG_INFO, "file to read:%s\n", commandFile.name);
-			fd = open_file(commandFile.name, 0);
+			fd = open_file(commandFile.name, O_RDONLY, EMPTY_MODE);
 			if (fd < 0) {
 				strcpy(error_msg, "Error: Unable to read the value");
 				write(sock , error_msg , strlen(error_msg));
@@ -595,7 +584,7 @@ void *connection_handler(void *socket_desc)
 
 				read(fd, commandFile.value, sizeof(commandFile.value));
 				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
-				close(fd);
+				safe_close(fd);
 				send(sock , commandFile.value , sizeof(commandFile.value), 0);
 				commandFile.value[0] = '\0';
 			}
@@ -717,8 +706,10 @@ void *connection_handler(void *socket_desc)
 			write(sock , returnMsg , strlen(returnMsg));
 		} else if (findSubstr(client_message, "read_command:config") > -1) {
 			client_message[0] = '\0';
-			read_config_file_data("/data/config.file", client_message, SOCKET_MESSAGE_MAX_LENGTH);
-			write(sock , client_message , strlen(client_message));
+			if ((read_config_file_data("/data/config.file", client_message, SOCKET_MESSAGE_MAX_LENGTH)))
+				write(sock , client_message , strlen(client_message));
+			else
+				write(sock , error_message_read_file , strlen(error_message_read_file));
 		} else if (findSubstr(client_message, "read_command:api_version") > -1) {
 			client_message[0] = '\0';
 			strcpy(returnMsg, API_VERSION);
@@ -761,25 +752,25 @@ void *connection_handler(void *socket_desc)
 			send(sock , returnMsg , strlen(returnMsg), 0);
 		} else if (findSubstr(client_message, "read_command:last_reboot_reason") > -1) {
 			struct file_action commandFile;
-			fd = open_file(LAST_REBOOT_FILE_PATH, 0);
+			fd = open_file(LAST_REBOOT_FILE_PATH, O_RDONLY, EMPTY_MODE);
 			if (fd < 0) {
 				strcpy(commandFile.value, REPLY_NACK);
 			} else {
 				read(fd, commandFile.value, sizeof(commandFile.value));
 				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
-				close(fd);
+				safe_close(fd);
 			}
 			send(sock , commandFile.value , strlen(commandFile.value), 0);
 		} else if (findSubstr(client_message, "write_command:last_reboot_reason_done") > -1) {
 			struct file_action commandFile;
-			fd = open_file(LAST_REBOOT_FILE_PATH, 0);
+			fd = open_file(LAST_REBOOT_FILE_PATH, O_RDWR, EMPTY_MODE);
 			if (fd < 0) {
 				send(sock , REPLY_NACK , strlen(REPLY_NACK), 0);
 			} else {
 				send(sock , REPLY_ACK , strlen(REPLY_ACK), 0);
 				write(fd, "POR", strlen("POR"));
 				ND_printlog(ND_LOG_INFO, "set watchdog file to 0 since state has been read");
-				close(fd);
+				safe_close(fd);
 			}
 			commandFile.value[0] = '\0';
 		}
@@ -796,6 +787,6 @@ void *connection_handler(void *socket_desc)
 	//Free the socket pointer
 free_socket:
 	free(socket_desc);
-	close(sock);
+	safe_close(sock);
 	return 0;
 }
