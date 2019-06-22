@@ -19,26 +19,25 @@
 #include "server_log.h"
 
 
-#define ate_daemon_kmsg_print(x...) KLOG_ERROR("ate_daemon", x)
 
 struct bittest_info {
-        uint8_t i2c_pmic_status;                        /*!< i2c0 0x36 */
-        uint8_t i2c_fuelgauge_status;           /*!< i2c0 0x66 */
-        uint8_t i2c_max77818top_status;         /*!< i2c0 0x69 */
-        uint8_t i2c_max77818charger_status;             /*!< i2c0 0x18 */
-        uint8_t i2c_displaytouchpanel_status;   /*!< i2c0 0x26 */
-        uint8_t i2c_max77816dc3_status;         /*!< i2c2 0x18 */
-        uint8_t i2c_rtc_status;                 /*!< i2c2 0x68 */
-        uint8_t i2c_rtcmemblock0_status;                /*!< i2c2 0x69 */
-        uint8_t i2c_rtcmemblock1_status;                /*!< i2c2 0x6A */
-        uint8_t i2c_cradletempsensor_status;    /*!< i2c2 0x48 */
-        uint8_t i2c_ioexpender_status;          /*!< i2c2 0x20 */
-        uint8_t ble_status;
-        uint8_t battery_status;
-        uint8_t rtc_functional_status;
-        uint8_t fw_crc_status;
-        uint8_t apk_crc_status;
-        char timestamp [100];
+	uint8_t i2c_pmic_status;                        /*!< i2c0 0x36 */
+	uint8_t i2c_fuelgauge_status;           /*!< i2c0 0x66 */
+	uint8_t i2c_max77818top_status;         /*!< i2c0 0x69 */
+	uint8_t i2c_max77818charger_status;             /*!< i2c0 0x18 */
+	uint8_t i2c_displaytouchpanel_status;   /*!< i2c0 0x26 */
+	uint8_t i2c_max77816dc3_status;         /*!< i2c2 0x18 */
+	uint8_t i2c_rtc_status;                 /*!< i2c2 0x68 */
+	uint8_t i2c_rtcmemblock0_status;                /*!< i2c2 0x69 */
+	uint8_t i2c_rtcmemblock1_status;                /*!< i2c2 0x6A */
+	uint8_t i2c_cradletempsensor_status;    /*!< i2c2 0x48 */
+	uint8_t i2c_ioexpender_status;          /*!< i2c2 0x20 */
+	uint8_t ble_status;
+	uint8_t battery_status;
+	uint8_t rtc_functional_status;
+	uint8_t fw_crc_status;
+	uint8_t apk_crc_status;
+	char timestamp [100];
 };
 
 alarms_struct alarms;
@@ -379,8 +378,8 @@ int crc_passed(char *filename, uint8_t type)
 	}
 	ND_printlog(ND_LOG_INFO, "\r\n%s crc_calculated result: %d\r\n", filename, crc_calculated);
 //now read expected CRC
-	free (buffer);
-	free (buffer_filtered);
+	free(buffer);
+	free(buffer_filtered);
 	if (crc_calculated == crc_expected)
 		return 0;
 	else return -1;
@@ -475,11 +474,10 @@ int main(void)
 	struct sockaddr_in server , client;
 	bittest_init_full();
 
-    server_daemon_kmsg_print("--- server daemon STARTED ---");
-    if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0)
-    {
-        server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
-    }
+	server_daemon_kmsg_print("--- server daemon STARTED ---");
+	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
+		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
+	}
 
 	//Create socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
