@@ -202,7 +202,7 @@ int open_file(char *filename, uint8_t create_if_not_exist)
 {
 	int fd;
 	if (create_if_not_exist)
-		fd = open(filename, O_RDWR | O_CREAT);
+		fd = open(filename, O_RDWR | O_CREAT, 0666);
 	else
 		fd = open(filename, O_RDWR);
 	if (fd < 0) {
@@ -330,10 +330,10 @@ uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
 void rmSubstr(char *str, const char *toRemove)
 {
 	size_t length = strlen(toRemove);
-	char *found,
-	     *next = strstr(str, toRemove);
+	char *found, *next = strstr(str, toRemove);
+	size_t bytesRemoved = 0;
 
-	for (size_t bytesRemoved = 0; (found = next); bytesRemoved += length) {
+	for (; (found = next); bytesRemoved += length) {
 		char *rest = found + length;
 		next = strstr(rest, toRemove);
 		memmove(found - bytesRemoved,
@@ -401,13 +401,14 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 	char *pfound;
 	char *eptr;
 	long crc_extracted;
+	int i = 0;
 	if (file_type == FILE_JSON)
 		pfound = strstr(string_containing_crc, CRC_STRING_JSON);
 	else
 		pfound = strstr(string_containing_crc, CRC_STRING_INI);
 	if (pfound == NULL)
 		return 0;
-	for (int i = 0; i < strlen(pfound); i++) {
+	for (; i < strlen(pfound); i++) {
 		if (isdigit(pfound[i])) {
 			crc_extracted = strtol(pfound + i, &eptr, 10);
 			printf("\r\nexpected CRC is %lu\r\n", crc_extracted);

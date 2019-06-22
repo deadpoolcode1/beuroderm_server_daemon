@@ -1,8 +1,0 @@
-{
- "Unit_TestObj": 
- [
-   { "message":"read_time", "response":"8"},
-   { "message":"write_time:060911052016.00"}, 
-   { "message":"read_time", "response":"8"}
- ]
-}
