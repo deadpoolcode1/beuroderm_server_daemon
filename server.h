@@ -1,3 +1,6 @@
+#ifndef SERVER_LISTNER_H_
+#define SERVER_LISTNER_H_
+
 #define FW_CONFIG_FILE_PATH "/system/bin/config.file"
 #define APK_CONFIG_FILE_PATH "/system/etc/cs_config.json"
 #define BIT_I2C_PMIC "BIT_I2C_PMIC"
@@ -82,3 +85,5 @@ typedef struct {
 	uint8_t battery_not_detected;
 	uint8_t wc_error_alarm;
 } alarms_struct;
+#endif /* SERVER_LISTNER_H_ */
+

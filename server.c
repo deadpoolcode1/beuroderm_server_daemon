@@ -7,16 +7,19 @@
 #include <signal.h>
 #include <pthread.h> //for threading , link with lpthread
 #include <ctype.h>
-#include "inih/ini.h"
-#include "parson/parson.h"
-
-
 #include <fcntl.h>
 #include <err.h>
 #include <errno.h>
+#include <cutils/klog.h>
+#include <ND_LogLibrary.h>
+#include "inih/ini.h"
+#include "parson/parson.h"
 #include "i2c.h"
 #include "server.h"
+#include "server_log.h"
 
+
+#define ate_daemon_kmsg_print(x...) KLOG_ERROR("ate_daemon", x)
 
 struct bittest_info {
         uint8_t i2c_pmic_status;                        /*!< i2c0 0x36 */
@@ -67,7 +70,6 @@ int findSubstr(char *inpText, char *pattern)
 		char *remPat = pattern;
 
 		if (strlen(remTxt) < strlen(remPat)) {
-			/* printf ("length issue remTxt %s \nremPath %s \n", remTxt, remPat); */
 			return -1;
 		}
 		while (*remTxt++ == *remPat++) {
@@ -106,7 +108,7 @@ ensure closing the socket before exiting software
 void sig_handler(int signo)
 {
 	if (signo == SIGINT)
-		printf("received SIGINT\n");
+		ND_printlog(ND_LOG_INFO, "received SIGINT\n");
 	close(socket_desc_main);
 	exit(1);
 }
@@ -121,7 +123,7 @@ int open_file(char *filename, uint8_t create_if_not_exist)
 	else
 		fd = open(filename, O_RDWR);
 	if (fd < 0) {
-		printf(" - Can not open file : %s\n", filename);
+		ND_printlog(ND_LOG_ERROR, "error Can not open file : %s\n", filename);
 	}
 	return fd;
 }
@@ -145,7 +147,7 @@ char* read_file_data(char *filename, char *buffer, size_t buffer_size)
 	FILE *file = fopen(filename, "r");
 	// make sure the file opened properly
 	if (NULL == file) {
-		fprintf(stderr, "Cannot open file: %s\n", filename);
+		ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
 		return "";
 	}
 
@@ -170,7 +172,7 @@ char* read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 	FILE *file = fopen(filename, "r");
 	// make sure the file opened properly
 	if (NULL == file) {
-		fprintf(stderr, "Cannot open file: %s\n", filename);
+		ND_printlog(ND_LOG_ERROR, "error, cannot open file: %s\n", filename);
 		return "";
 	}
 
@@ -204,7 +206,7 @@ int file_exists(char *filename)
 	fd = access(filename, F_OK);
 	if (fd != -1) {
 	} else {
-		printf(" - file %s not exits\n", filename);
+		ND_printlog(ND_LOG_ERROR, "error, file %s not exits\n", filename);
 	}
 
 	return fd;
@@ -297,7 +299,7 @@ int place_crc_if_not_exist(char *filename, unsigned short crc)
 	char write_data[10];
 	if (access(filename, F_OK) != -1)
 		return 0;
-	printf("file not exists");
+	ND_printlog(ND_LOG_ERROR, "error, file not exists");
 	fd = open_file(filename, 1);
 	if (fd < 0)
 		return -1;
@@ -321,7 +323,7 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 	for (; i < strlen(pfound); i++) {
 		if (isdigit(pfound[i])) {
 			crc_extracted = strtol(pfound + i, &eptr, 10);
-			printf("\r\nexpected CRC is %lu\r\n", crc_extracted);
+			ND_printlog(ND_LOG_INFO, "\r\nexpected CRC is %lu\r\n", crc_extracted);
 			break;
 		}
 	}
@@ -344,7 +346,7 @@ int crc_passed(char *filename, uint8_t type)
 	FILE *file = fopen(filename, "r");
 	// make sure the file opened properly
 	if (NULL == file) {
-		fprintf(stderr, "Cannot open file: %s\n", filename);
+		ND_printlog(ND_LOG_ERROR, "Cannot open file: %s\n", filename);
 		return -1;
 	}
 	//assign memory for buffer
@@ -375,7 +377,7 @@ int crc_passed(char *filename, uint8_t type)
 		x ^= x >> 4;
 		crc_calculated = (crc_calculated << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x << 5)) ^ ((unsigned short)x);
 	}
-	printf("\r\n%s crc_calculated result: %d\r\n", filename, crc_calculated);
+	ND_printlog(ND_LOG_INFO, "\r\n%s crc_calculated result: %d\r\n", filename, crc_calculated);
 //now read expected CRC
 	free (buffer);
 	free (buffer_filtered);
@@ -408,7 +410,7 @@ char * return_current_bit_status(char *update_string)
 	json_object_set_boolean(root_object, BIT_APKCRC, latest_bittest.apk_crc_status);
 	json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp);
 	update_string = json_serialize_to_string_pretty(root_value);
-	printf("bit test: %s\r\n", update_string);
+	ND_printlog(ND_LOG_INFO, "bit test: %s\r\n", update_string);
 	json_value_free(root_value);
 	return update_string;
 }
@@ -421,8 +423,7 @@ void bittest_init_full()
 	uint32_t rtc_time_value;
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
-
-	printf("\n\n*** Bit testing procedure started! ***\n\n");
+	ND_printlog(ND_LOG_INFO, "\n\n*** Bit testing procedure started! ***\n\n");
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
 	latest_bittest.i2c_fuelgauge_status = check_i2c_validity(i2c0_path, i2c_fuelgauge_status_address, i2c_fuelgauge_status_register);
 	latest_bittest.i2c_max77818top_status = check_i2c_validity(i2c0_path, i2c_max77818top_status_address, i2c_max77818top_status_register);
@@ -462,7 +463,7 @@ void bittest_init_full()
 		latest_bittest.apk_crc_status = FAILED;
 	strftime(latest_bittest.timestamp, 1000, "%c" , p);
 	return_current_bit_status(return_reply);
-	printf("\n\n*** Bit testing procedure endded! ***\n\n");
+	ND_printlog(ND_LOG_INFO, "\n\n*** Bit testing procedure endded! ***\n\n");
 }
 
 
@@ -474,10 +475,16 @@ int main(void)
 	struct sockaddr_in server , client;
 	bittest_init_full();
 
+    server_daemon_kmsg_print("--- server daemon STARTED ---");
+    if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0)
+    {
+        server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
+    }
+
 	//Create socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
 	if (socket_desc == -1) {
-		printf("Could not create socket");
+		ND_printlog(ND_LOG_ERROR, "error, Could not create socket\n");
 	}
 	//Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
@@ -496,7 +503,7 @@ int main(void)
 	listen(socket_desc , 3);
 
 	//Accept and incoming connection
-	puts("Waiting for incoming connections...");
+	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
 	while ((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))) {
 		puts("server Connection accepted");
@@ -550,7 +557,7 @@ void *connection_handler(void *socket_desc)
 		//Send the message back to client
 		//write(sock , client_message , strlen(client_message));
 		client_message[read_size] = '\0';
-		printf("message:%s\n", client_message);
+		ND_printlog(ND_LOG_INFO, "message:%s\n", client_message);
 		//now make action according to messaage
 		if (findSubstr(client_message, "write_file") > -1) {
 			fflush(stdin);
@@ -560,9 +567,9 @@ void *connection_handler(void *socket_desc)
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
 			commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
-			printf("file to write:%s\n", commandFile.name);
+			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
 			strcpy(commandFile.value, client_message + findSubstr(client_message, "="));
-			printf("value:%s\n", commandFile.value);
+			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
 			fd = open_file(commandFile.name, 0);
 			if (fd < 0) {
 				strcpy(returnMsg, REPLY_NACK);
@@ -579,7 +586,7 @@ void *connection_handler(void *socket_desc)
 			*/
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
-			printf("file to read:%s\n", commandFile.name);
+			ND_printlog(ND_LOG_INFO, "file to read:%s\n", commandFile.name);
 			fd = open_file(commandFile.name, 0);
 			if (fd < 0) {
 				strcpy(error_msg, "Error: Unable to read the value");
@@ -589,7 +596,7 @@ void *connection_handler(void *socket_desc)
 			} else {
 
 				read(fd, commandFile.value, sizeof(commandFile.value));
-				printf("value read:%s\n", commandFile.value);
+				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
 				close(fd);
 				send(sock , commandFile.value , sizeof(commandFile.value), 0);
 				commandFile.value[0] = '\0';
@@ -603,12 +610,12 @@ void *connection_handler(void *socket_desc)
 
 
 			strcpy(type, client_message + findSubstr(client_message, ":"));
-			printf("bittest init type:%s\n", type);
+			ND_printlog(ND_LOG_INFO, "bittest init type:%s\n", type);
 			//if(findSubstr(client_message, "full")>-1)
 			{
 				bittest_init_full();
 				sprintf(returnMsg, "%s", return_current_bit_status(returnMsg));
-				printf("%s\n", returnMsg);
+				ND_printlog(ND_LOG_INFO, "%s\n", returnMsg);
 				write(sock , returnMsg , strlen(returnMsg));
 			}
 		} else if (findSubstr(client_message, "read_bit:bittest") > -1) {
@@ -626,7 +633,6 @@ void *connection_handler(void *socket_desc)
 			returnMsg[0] = '\0';
 			strftime(returnMsg, 1000, "%c" , p);
 			send(sock , returnMsg , strlen(returnMsg), 0);
-			printf("returnMsg\n");
 		} else if (findSubstr(client_message, "write_time") > -1) {
 			pid_t my_pid, parent_pid, child_pid;
 			fflush(stdin);
@@ -635,7 +641,7 @@ void *connection_handler(void *socket_desc)
 			*/
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
-			printf("time:%s\n", commandFile.name);
+			ND_printlog(ND_LOG_INFO, "time:%s\n", commandFile.name);
 			strcpy(returnMsg, REPLY_ACK);
 			send(sock , returnMsg , strlen(returnMsg), 0);
 			my_pid = getpid();
@@ -660,7 +666,7 @@ void *connection_handler(void *socket_desc)
 			*/
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
-			printf("sleep time:%s\n", commandFile.name);
+			ND_printlog(ND_LOG_INFO, "sleep time:%s\n", commandFile.name);
 			strcpy(returnMsg, REPLY_ACK);
 			send(sock , returnMsg , strlen(returnMsg), 0);
 			my_pid = getpid();
@@ -721,11 +727,10 @@ void *connection_handler(void *socket_desc)
 			send(sock , returnMsg , strlen(returnMsg), 0);
 		} else if (findSubstr(client_message, "read_command:device_year") > -1) {
 			if (ini_parse("/data/config.file", handler, &config) < 0) {
-				printf("Can't load 'test.ini'\n");
+				ND_printlog(ND_LOG_ERROR, "error, Can not load 'test.ini'\n");
 				goto free_socket;
 			}
-			printf("Config loaded from '/data/config.file': device_year=%s\n",
-			       config.year);
+			ND_printlog(ND_LOG_INFO, "Config loaded from '/data/config.file': device_year=%s\n", config.year);
 			client_message[0] = '\0';
 			strcpy(returnMsg, config.year);
 			send(sock , returnMsg , strlen(returnMsg), 0);
@@ -763,7 +768,7 @@ void *connection_handler(void *socket_desc)
 				strcpy(commandFile.value, REPLY_NACK);
 			} else {
 				read(fd, commandFile.value, sizeof(commandFile.value));
-				printf("value read:%s\n", commandFile.value);
+				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
 				close(fd);
 			}
 			send(sock , commandFile.value , strlen(commandFile.value), 0);
@@ -775,7 +780,7 @@ void *connection_handler(void *socket_desc)
 			} else {
 				send(sock , REPLY_ACK , strlen(REPLY_ACK), 0);
 				write(fd, "POR", strlen("POR"));
-				printf("set watchdog file to 0 since state has been read");
+				ND_printlog(ND_LOG_INFO, "set watchdog file to 0 since state has been read");
 				close(fd);
 			}
 			commandFile.value[0] = '\0';
