@@ -1,0 +1,84 @@
+#define FW_CONFIG_FILE_PATH "/system/bin/config.file"
+#define APK_CONFIG_FILE_PATH "/system/etc/cs_config.json"
+#define BIT_I2C_PMIC "BIT_I2C_PMIC"
+#define BIT_I2C_FUELGAUGE "BIT_I2C_FUELGAUGE"
+#define BIT_I2C_MAX77818TOP "BIT_I2C_MAX77818TOP"
+#define BIT_I2C_MAX77818CHARGER "BIT_I2C_MAX77818CHARGER"
+#define BIT_I2C_DISPLAYTOUCHPANEL "BIT_I2C_DISPLAYTOUCHPANEL"
+#define BIT_I2C_MAX77816DC3 "BIT_I2C_MAX77816DC3"
+#define BIT_I2C_RTC "BIT_I2C_RTC"
+#define BIT_I2C_RTCMEMBLOCK0 "BIT_I2C_RTCMEMBLOCK0"
+#define BIT_I2C_RTCMEMBLOCK1 "BIT_I2C_RTCMEMBLOCK1"
+#define BIT_I2C_CRADLETEMPSENSOR "BIT_I2C_CRADLETEMPSENSOR"
+#define BIT_I2C_IOEXPENDER "BIT_I2C_IOEXPENDER"
+#define BIT_BLE "BIT_BLE"
+#define BIT_BATTERY "BIT_BATTERY"
+#define BIT_RTCFUNCTIONAL "BIT_RTCFUNCTIONAL"
+#define BIT_FWCRC "BIT_FWCRC"
+#define BIT_APKCRC "BIT_APKCRC"
+#define BIT_TIMESTAMP "BIT_TIMESTAMP"
+#define SOCKET_MESSAGE_MAX_LENGTH 2000
+#define REPLY_ACK "ACK"
+#define REPLY_NACK "NACK"
+#define API_VERSION "4"
+#define MAX_FILE_SIZE 5000
+#define CRC_STRING_JSON "\"crc\":\""
+#define CRC_STRING_INI "crc="
+//i2c bit test address, paths, registers definition
+
+#define i2c0_path "/dev/i2c-0"
+#define i2c2_path "/dev/i2c-2"
+#define rtc_time_read "/sys/class/i2c-dev/i2c-2/device/2-0068/rtc/rtc0/since_epoch"
+#define battery_exists_path "/sys/class/power_supply/battery/present"
+//i2c0_path
+#define i2c_pmic_status_address 0x36
+#define i2c_pmic_status_register 0x00
+#define i2c_fuelgauge_status_address 0x66
+#define i2c_fuelgauge_status_register 0x20
+#define i2c_max77818top_status_address 0x69
+#define i2c_max77818top_status_register 0xb0
+#define i2c_max77818charger_status_address 0x18
+#define i2c_max77818charger_status_register 0x00
+#define i2c_displaytouchpanel_status_address 0x26
+#define i2c_displaytouchpanel_status_register 0x00
+//i2c2_path
+#define i2c_max77816dc3_status_address 0x18
+#define i2c_max77816dc3_status_register 0x00
+#define i2c_rtc_status_address 0x68
+#define i2c_rtc_status_register 0x00
+#define i2c_rtcmemblock0_status_address 0x69
+#define i2c_rtcmemblock0_status_register 0x00
+#define i2c_rtcmemblock1_status_address 0x6A
+#define i2c_rtcmemblock1_status_register 0x00
+#define i2c_cradletempsensor_status_address 0x48
+#define i2c_cradletempsensor_status_register 0x00
+#define i2c_ioexpender_status_address 0x20
+#define i2c_ioexpender_status_register 0x00
+//last reboot reason file path
+#define LAST_REBOOT_FILE_PATH "/data/last_reset_reason_persistent"
+typedef struct {
+	char* year;
+} configuration;
+
+configuration config;
+
+enum BITRESULT            /* Defines results  */
+{
+	FAILED = 0,
+	PASSED
+} ;
+
+enum FILETYPE {
+	FILE_JSON,
+	FILE_INI
+};
+
+
+typedef struct {
+	uint8_t cpu_high_temperature_alarm;
+	uint8_t cpu_critical_temperature_alarm;
+	uint8_t wc_high_temperature_alarm;
+	uint8_t battery_high_temperature_alarm;
+	uint8_t battery_not_detected;
+	uint8_t wc_error_alarm;
+} alarms_struct;

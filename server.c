@@ -15,113 +15,28 @@
 #include <err.h>
 #include <errno.h>
 #include "i2c.h"
-#define ServerDebug 1
-#ifdef ServerDebug
-#undef ServerDebug
-#endif
-#define FW_CONFIG_FILE_PATH "/system/bin/config.file"
-#define APK_CONFIG_FILE_PATH "/system/etc/cs_config.json"
-#define BIT_I2C_PMIC "BIT_I2C_PMIC"
-#define BIT_I2C_FUELGAUGE "BIT_I2C_FUELGAUGE"
-#define BIT_I2C_MAX77818TOP "BIT_I2C_MAX77818TOP"
-#define BIT_I2C_MAX77818CHARGER "BIT_I2C_MAX77818CHARGER"
-#define BIT_I2C_DISPLAYTOUCHPANEL "BIT_I2C_DISPLAYTOUCHPANEL"
-#define BIT_I2C_MAX77816DC3 "BIT_I2C_MAX77816DC3"
-#define BIT_I2C_RTC "BIT_I2C_RTC"
-#define BIT_I2C_RTCMEMBLOCK0 "BIT_I2C_RTCMEMBLOCK0"
-#define BIT_I2C_RTCMEMBLOCK1 "BIT_I2C_RTCMEMBLOCK1"
-#define BIT_I2C_CRADLETEMPSENSOR "BIT_I2C_CRADLETEMPSENSOR"
-#define BIT_I2C_IOEXPENDER "BIT_I2C_IOEXPENDER"
-#define BIT_BLE "BIT_BLE"
-#define BIT_BATTERY "BIT_BATTERY"
-#define BIT_RTCFUNCTIONAL "BIT_RTCFUNCTIONAL"
-#define BIT_FWCRC "BIT_FWCRC"
-#define BIT_APKCRC "BIT_APKCRC"
-#define BIT_TIMESTAMP "BIT_TIMESTAMP"
-#define SOCKET_MESSAGE_MAX_LENGTH 2000
-#define REPLY_ACK "ACK"
-#define REPLY_NACK "NACK"
-#define API_VERSION "4"
-#define MAX_FILE_SIZE 5000
-#define CRC_STRING_JSON "\"crc\":\""
-#define CRC_STRING_INI "crc="
-//i2c bit test address, paths, registers definition
+#include "server.h"
 
-#define i2c0_path "/dev/i2c-0"
-#define i2c2_path "/dev/i2c-2"
-#define rtc_time_read "/sys/class/i2c-dev/i2c-2/device/2-0068/rtc/rtc0/since_epoch"
-#define battery_exists_path "/sys/class/power_supply/battery/present"
-//i2c0_path
-#define i2c_pmic_status_address 0x36
-#define i2c_pmic_status_register 0x00
-#define i2c_fuelgauge_status_address 0x66
-#define i2c_fuelgauge_status_register 0x20
-#define i2c_max77818top_status_address 0x69
-#define i2c_max77818top_status_register 0xb0
-#define i2c_max77818charger_status_address 0x18
-#define i2c_max77818charger_status_register 0x00
-#define i2c_displaytouchpanel_status_address 0x26
-#define i2c_displaytouchpanel_status_register 0x00
-//i2c2_path
-#define i2c_max77816dc3_status_address 0x18
-#define i2c_max77816dc3_status_register 0x00
-#define i2c_rtc_status_address 0x68
-#define i2c_rtc_status_register 0x00
-#define i2c_rtcmemblock0_status_address 0x69
-#define i2c_rtcmemblock0_status_register 0x00
-#define i2c_rtcmemblock1_status_address 0x6A
-#define i2c_rtcmemblock1_status_register 0x00
-#define i2c_cradletempsensor_status_address 0x48
-#define i2c_cradletempsensor_status_register 0x00
-#define i2c_ioexpender_status_address 0x20
-#define i2c_ioexpender_status_register 0x00
-//last reboot reason file path
-#define LAST_REBOOT_FILE_PATH "/data/last_reset_reason_persistent"
-typedef struct {
-	char* year;
-} configuration;
-
-configuration config;
-
-enum BITRESULT            /* Defines results  */
-{
-	FAILED = 0,
-	PASSED
-} ;
-
-enum FILETYPE {
-	FILE_JSON,
-	FILE_INI
-};
 
 struct bittest_info {
-	uint8_t i2c_pmic_status;  			/*!< i2c0 0x36 */
-	uint8_t i2c_fuelgauge_status;		/*!< i2c0 0x66 */
-	uint8_t i2c_max77818top_status;		/*!< i2c0 0x69 */
-	uint8_t i2c_max77818charger_status;		/*!< i2c0 0x18 */
-	uint8_t i2c_displaytouchpanel_status;	/*!< i2c0 0x26 */
-	uint8_t i2c_max77816dc3_status;		/*!< i2c2 0x18 */
-	uint8_t i2c_rtc_status;			/*!< i2c2 0x68 */
-	uint8_t i2c_rtcmemblock0_status;		/*!< i2c2 0x69 */
-	uint8_t i2c_rtcmemblock1_status;		/*!< i2c2 0x6A */
-	uint8_t i2c_cradletempsensor_status;	/*!< i2c2 0x48 */
-	uint8_t i2c_ioexpender_status;		/*!< i2c2 0x20 */
-	uint8_t ble_status;
-	uint8_t battery_status;
-	uint8_t rtc_functional_status;
-	uint8_t fw_crc_status;
-	uint8_t apk_crc_status;
-	char timestamp [100];
+        uint8_t i2c_pmic_status;                        /*!< i2c0 0x36 */
+        uint8_t i2c_fuelgauge_status;           /*!< i2c0 0x66 */
+        uint8_t i2c_max77818top_status;         /*!< i2c0 0x69 */
+        uint8_t i2c_max77818charger_status;             /*!< i2c0 0x18 */
+        uint8_t i2c_displaytouchpanel_status;   /*!< i2c0 0x26 */
+        uint8_t i2c_max77816dc3_status;         /*!< i2c2 0x18 */
+        uint8_t i2c_rtc_status;                 /*!< i2c2 0x68 */
+        uint8_t i2c_rtcmemblock0_status;                /*!< i2c2 0x69 */
+        uint8_t i2c_rtcmemblock1_status;                /*!< i2c2 0x6A */
+        uint8_t i2c_cradletempsensor_status;    /*!< i2c2 0x48 */
+        uint8_t i2c_ioexpender_status;          /*!< i2c2 0x20 */
+        uint8_t ble_status;
+        uint8_t battery_status;
+        uint8_t rtc_functional_status;
+        uint8_t fw_crc_status;
+        uint8_t apk_crc_status;
+        char timestamp [100];
 };
-
-typedef struct {
-	uint8_t cpu_high_temperature_alarm;
-	uint8_t cpu_critical_temperature_alarm;
-	uint8_t wc_high_temperature_alarm;
-	uint8_t battery_high_temperature_alarm;
-	uint8_t battery_not_detected;
-	uint8_t wc_error_alarm;
-} alarms_struct;
 
 alarms_struct alarms;
 
@@ -288,13 +203,8 @@ int file_exists(char *filename)
 	int fd;
 	fd = access(filename, F_OK);
 	if (fd != -1) {
-#ifdef ServerDebug
-		printf(" - file %s exits\n", filename);
-#endif
 	} else {
-#ifdef ServerDebug
 		printf(" - file %s not exits\n", filename);
-#endif
 	}
 
 	return fd;
@@ -557,7 +467,7 @@ void bittest_init_full()
 
 
 
-int main(int argc , char *argv[])
+int main(void)
 {
 
 	int socket_desc , new_socket , c , *new_sock;
@@ -640,9 +550,7 @@ void *connection_handler(void *socket_desc)
 		//Send the message back to client
 		//write(sock , client_message , strlen(client_message));
 		client_message[read_size] = '\0';
-#ifdef ServerDebug
 		printf("message:%s\n", client_message);
-#endif
 		//now make action according to messaage
 		if (findSubstr(client_message, "write_file") > -1) {
 			fflush(stdin);
@@ -652,13 +560,9 @@ void *connection_handler(void *socket_desc)
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
 			commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
-#ifdef ServerDebug
 			printf("file to write:%s\n", commandFile.name);
-#endif
 			strcpy(commandFile.value, client_message + findSubstr(client_message, "="));
-#ifdef ServerDebug
 			printf("value:%s\n", commandFile.value);
-#endif
 			fd = open_file(commandFile.name, 0);
 			if (fd < 0) {
 				strcpy(returnMsg, REPLY_NACK);
@@ -675,9 +579,7 @@ void *connection_handler(void *socket_desc)
 			*/
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
-#ifdef ServerDebug
 			printf("file to read:%s\n", commandFile.name);
-#endif
 			fd = open_file(commandFile.name, 0);
 			if (fd < 0) {
 				strcpy(error_msg, "Error: Unable to read the value");
@@ -687,9 +589,7 @@ void *connection_handler(void *socket_desc)
 			} else {
 
 				read(fd, commandFile.value, sizeof(commandFile.value));
-#ifdef ServerDebug
 				printf("value read:%s\n", commandFile.value);
-#endif
 				close(fd);
 				send(sock , commandFile.value , sizeof(commandFile.value), 0);
 				commandFile.value[0] = '\0';
@@ -703,9 +603,6 @@ void *connection_handler(void *socket_desc)
 
 
 			strcpy(type, client_message + findSubstr(client_message, ":"));
-#ifdef ServerDebug
-			printf("bittest init type:%s\n", type);
-#endif
 			printf("bittest init type:%s\n", type);
 			//if(findSubstr(client_message, "full")>-1)
 			{
@@ -738,17 +635,11 @@ void *connection_handler(void *socket_desc)
 			*/
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
-			//#ifdef ServerDebug
 			printf("time:%s\n", commandFile.name);
-			//#endif
 			strcpy(returnMsg, REPLY_ACK);
 			send(sock , returnMsg , strlen(returnMsg), 0);
 			my_pid = getpid();
 			parent_pid = getppid();
-#ifdef ServerDebug
-			printf("\n Parent: my pid is %d\n\n", my_pid);
-			printf("Parent: my parent's pid is %d\n\n", parent_pid);
-#endif
 			/* print error message if fork() fails */
 			if ((child_pid = fork()) < 0) {
 				perror("fork failure");
@@ -769,9 +660,7 @@ void *connection_handler(void *socket_desc)
 			*/
 			struct file_action commandFile;
 			strcpy(commandFile.name, client_message + findSubstr(client_message, ":"));
-			//#ifdef ServerDebug
 			printf("sleep time:%s\n", commandFile.name);
-			//#endif
 			strcpy(returnMsg, REPLY_ACK);
 			send(sock , returnMsg , strlen(returnMsg), 0);
 			my_pid = getpid();
