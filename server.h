@@ -59,6 +59,12 @@
 #define i2c_ioexpender_status_register 0x00
 //last reboot reason file path
 #define LAST_REBOOT_FILE_PATH "/data/last_reset_reason_persistent"
+//array sizes
+#define STD_FILE_LENGTH 100
+#define REPLY_STRING_LENGTH 1000
+#define MIN_CONFIG_LINE_LEN 3
+#define SHORT_BUFFER_LEN 10
+#define RTC_DATA_LEN 20
 typedef struct {
 	char* year;
 } configuration;

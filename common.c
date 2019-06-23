@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/file.h>
 #ifndef C_COMPILE
 #include <ND_LogLibrary.h>
 #endif
@@ -39,12 +40,18 @@ int str2int(int *out, char *s, int max_spaces, int size_of_string)
 	char convert_string [size_of_string];
 
 	if (check_snprintf(snprintf(convert_string, sizeof(convert_string) / sizeof(char), "%s", s), sizeof(convert_string) / sizeof(char)) != 0)
+	{
+		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_INCONVERTIBLE");	
 		return STR2INT_INCONVERTIBLE;
+	}
 	//remove trailing spaces
 	while (isspace(convert_string[i]) && (i < max_spaces) && (i < size_of_string - 1))
 		i++;
 	if (!(isdigit(convert_string[i])))
+	{
+		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_INCONVERTIBLE");
 		return STR2INT_INCONVERTIBLE;
+	}
 	errno = 0;
 	//allow charecters which are not numeric after the number
 	while ((i + j) < size_of_string) {
@@ -57,11 +64,20 @@ int str2int(int *out, char *s, int max_spaces, int size_of_string)
 	long l = strtol(convert_string + i, &end, 10);
 	/* Both checks are needed because INT_MAX == LONG_MAX is possible. */
 	if (l > INT_MAX || (errno == ERANGE && l == LONG_MAX))
+	{
+		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_OVERFLOW");
 		return STR2INT_OVERFLOW;
+	}
 	if (l < INT_MIN || (errno == ERANGE && l == LONG_MIN))
+	{
+		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_UNDERFLOW");
 		return STR2INT_UNDERFLOW;
+	}
 	if (*end != '\0')
+	{
+		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_UNDERFLOW");
 		return STR2INT_INCONVERTIBLE;
+	}
 	*out = l;
 	return STR2INT_SUCCESS;
 }

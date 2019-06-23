@@ -40,7 +40,7 @@ struct bittest_info {
 	uint8_t rtc_functional_status;
 	uint8_t fw_crc_status;
 	uint8_t apk_crc_status;
-	char timestamp [100];
+	char timestamp [STD_FILE_LENGTH];
 };
 
 alarms_struct alarms;
@@ -63,9 +63,10 @@ function return index of occurance pattern in string
 int findSubstr(char *inpText, char *pattern)
 {
 	int inplen = strlen(inpText);
+	char *remTxt, *remPat;
 	while (inpText != NULL) {
 
-		char *remTxt = inpText;
+		remTxt = inpText;
 		char *remPat = pattern;
 
 		if (strlen(remTxt) < strlen(remPat)) {
@@ -98,7 +99,7 @@ struct bittest_info latest_bittest;
 //handles a new connection
 void *connection_handler(void *);
 
-int socket_desc_main;
+int socket_desc_main = 0;
 
 /*
 function to handle ctrl+c response
@@ -148,14 +149,14 @@ int read_file_data(char *filename, char *buffer, size_t buffer_size)
 int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
  {
     char *line = NULL;
-    FILE *fptr;;
+    FILE *fptr;
     if ((fptr = fopen(filename, "r")) == NULL)
     {
     	ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
     	return -1;
     }
     while (-1 != getline(&line, &buffer_size, fptr)) {
-    	if (strlen(line) > 3)
+    	if (strlen(line) > MIN_CONFIG_LINE_LEN)
     		strcat(buffer, line);
     }
        fflush(stdout);
@@ -164,7 +165,7 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
     // finished
        safe_close_stream(fptr);
 
-        return 0;
+       return 0;
       // safe_close_stream(fptr);
  }
 
@@ -174,7 +175,8 @@ void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 	char *pos;
 	if (read_file_data(filename, buffer, buffer_size))
 	{
-		snprintf(buffer, buffer_size, "%s", error_message_read_file);
+		if (check_snprintf(snprintf(buffer, buffer_size, "%s", error_message_read_file), buffer_size))
+			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		return;
 	}
 	trim(buffer);
@@ -186,10 +188,8 @@ int file_exists(char *filename)
 {
 	int fd;
 	fd = access(filename, F_OK);
-	if (fd != -1) {
-	} else {
+	if (fd == -1)
 		ND_printlog(ND_LOG_ERROR, "error, file %s not exits\n", filename);
-	}
 
 	return fd;
 }
@@ -221,29 +221,11 @@ uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
 	return read_i2c(path, m_address, m_register) == 0xff ? FAILED : PASSED;
 }
 
-void rmSubstr(char *str, const char *toRemove)
-{
-	size_t length = strlen(toRemove);
-	char *found, *next = strstr(str, toRemove);
-	size_t bytesRemoved = 0;
-
-	for (; (found = next); bytesRemoved += length) {
-		char *rest = found + length;
-		next = strstr(rest, toRemove);
-		memmove(found - bytesRemoved,
-			rest,
-			next ? next - rest : strlen(rest) + 1);
-	}
-}
-
-
-
 char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 {
-	int i, j;
-	char tmp_input[MAX_FILE_SIZE];
+	unsigned int i = 0, j = 0;
+	char tmp_input[MAX_FILE_SIZE] = {0};
 	char *output = input;
-	tmp_input[0] = '\0';
 	for (i = 0, j = 0; i < strlen(input); i++, j++) {
 		if (input[i] != ' ' && input[i] != '\r' && input[i] != '\n')
 			output[j] = input[i];
@@ -279,7 +261,7 @@ exit_filter_crc_string:
 int place_crc_if_not_exist(char *filename, unsigned short crc)
 {
 	int fd = 0, ret = -1;
-	char write_data[10];
+	char write_data[SHORT_BUFFER_LEN] = {0};
 	if (access(filename, F_OK) != -1)
 		return 0;
 	ND_printlog(ND_LOG_INFO, "file not exists, creating file");
@@ -297,8 +279,8 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 {
 	char *pfound;
 	char *eptr;
-	long crc_extracted;
-	int i = 0;
+	int crc_extracted = 0;
+	unsigned int i = 0;
 	if (file_type == FILE_JSON)
 		pfound = strstr(string_containing_crc, CRC_STRING_JSON);
 	else
@@ -307,7 +289,8 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 		return 0;
 	for (; i < strlen(pfound); i++) {
 		if (isdigit(pfound[i])) {
-			crc_extracted = strtol(pfound + i, &eptr, 10);
+			if (str2int(&crc_extracted, pfound + i, MAX_ALLOWED_TRAILING_SPACES, STD_FILE_LENGTH) != STR2INT_SUCCESS)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "\r\nexpected CRC is %lu\r\n", crc_extracted);
 			break;
 		}
@@ -317,10 +300,10 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 
 int crc_passed(char *filename, uint8_t type)
 {
-	size_t buffer_size = 150;
+	size_t buffer_size = STD_FILE_LENGTH;
 	char *buffer;
 	char *buffer_filtered;
-	char full_buffer[MAX_FILE_SIZE];
+	char full_buffer[MAX_FILE_SIZE] = {0};
 	unsigned char x;
 	unsigned short crc_calculated = 0xFFFF;
 	unsigned short length;
@@ -340,7 +323,6 @@ int crc_passed(char *filename, uint8_t type)
 		perror("Unable to allocate buffer");
 		exit(1);
 	}
-	full_buffer[0] = '\0';
 	//assign memory for filtered buffer
 	buffer_filtered = (char *)malloc(buffer_size * sizeof(char));
 	if (buffer_filtered == NULL) {
@@ -406,8 +388,8 @@ char * return_current_bit_status(char *update_string)
 //fucnction that runs bittest full test
 int bittest_init_full()
 {
-	char return_reply[1000];
-	uint32_t rtc_time_value;
+	char return_reply[REPLY_STRING_LENGTH];
+	int32_t rtc_time_value;
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
 	int num_val = 0;
@@ -427,8 +409,9 @@ int bittest_init_full()
 		latest_bittest.ble_status = PASSED;
 	else
 		latest_bittest.ble_status = FAILED;
-	char *filebuffer = malloc(10 * sizeof(char));
-	read_file_data(battery_exists_path, filebuffer, 10);
+	char *filebuffer = malloc(SHORT_BUFFER_LEN * sizeof(char));
+	if (read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))
+			return -1;
 	if (str2int(&num_val, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) != STR2INT_SUCCESS)
 		return -1;
 	if (num_val > 0)
@@ -437,7 +420,10 @@ int bittest_init_full()
 		latest_bittest.battery_status = FAILED;
 	free(filebuffer);
 	char *filebufferl = malloc(20 * sizeof(char));
-	rtc_time_value = atol(read_file_data(rtc_time_read, filebufferl, 20));
+	if (read_file_data(rtc_time_read, filebufferl, 20))
+		return -1;
+	if ((num_val = str2int(&rtc_time_value, filebufferl, MAX_ALLOWED_TRAILING_SPACES, RTC_DATA_LEN)) != STR2INT_SUCCESS)
+		return -1;
 	//sleep(2);
 	//if (atol(read_file_data(rtc_time_read, filebufferl, 20)) - rtc_time_value > 1)
 	latest_bittest.rtc_functional_status = PASSED;
@@ -452,7 +438,7 @@ int bittest_init_full()
 		latest_bittest.apk_crc_status = PASSED;
 	else
 		latest_bittest.apk_crc_status = FAILED;
-	strftime(latest_bittest.timestamp, 1000, "%c" , p);
+	strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p);
 	return_current_bit_status(return_reply);
 	ND_printlog(ND_LOG_INFO, "\n\n*** Bit testing procedure endded! ***\n\n");
 	return 0;
@@ -489,7 +475,8 @@ int main(void)
 	}
 	socket_desc_main = socket_desc;
 	puts("bind done");
-	if (signal(SIGINT, sig_handler) == SIG_ERR);
+	if (signal(SIGINT, sig_handler) == SIG_ERR)
+		ND_printlog(ND_LOG_ERROR, "error, can't catch SIGINT\n");
 	//Listen
 	listen(socket_desc , 3);
 
@@ -529,14 +516,14 @@ void *connection_handler(void *socket_desc)
 	char client_message[SOCKET_MESSAGE_MAX_LENGTH];
 	char returnMsg[SOCKET_MESSAGE_MAX_LENGTH];
 	int fd;
-	char error_msg[100];
-	char read1[100];
-	char read2[100];
-	char read3[100];
+	char error_msg[STD_FILE_LENGTH];
+	char read1[STD_FILE_LENGTH];
+	char read2[STD_FILE_LENGTH];
+	char read3[STD_FILE_LENGTH];
 
 	struct file_action {
-		char name [100];
-		char value [100];
+		char name [STD_FILE_LENGTH];
+		char value [STD_FILE_LENGTH];
 	};
 
 	char buffer_read_file[150];
@@ -623,7 +610,7 @@ void *connection_handler(void *socket_desc)
 			time_t t = time(NULL);
 			struct tm * p = localtime(&t);
 			returnMsg[0] = '\0';
-			strftime(returnMsg, 1000, "%c" , p);
+			strftime(returnMsg, REPLY_STRING_LENGTH, "%c" , p);
 			send(sock , returnMsg , strlen(returnMsg), 0);
 		} else if (findSubstr(client_message, "write_time") > -1) {
 			pid_t my_pid, parent_pid, child_pid;
@@ -706,7 +693,7 @@ void *connection_handler(void *socket_desc)
 			read_file_data_no_space("/sys/class/switch/hall_detect/state", read3, size_of_array_read_file);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status", read1
 					, "battery_status_charging", read2,
-					"w_charger_state", read3),  sizeof(returnMsg) / sizeof(char)));
+					"w_charger_state", read3),  sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			write(sock , returnMsg , strlen(returnMsg));
 		} else if (findSubstr(client_message, "read_command:config") > -1) {
