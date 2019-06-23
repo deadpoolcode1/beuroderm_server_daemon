@@ -63,7 +63,7 @@ function return index of occurance pattern in string
 int findSubstr(char *inpText, char *pattern)
 {
 	int inplen = strlen(inpText);
-	char *remTxt, *remPat;
+	char *remTxt = NULL, *remPat = NULL;
 	while (inpText != NULL) {
 
 		remTxt = inpText;
@@ -81,7 +81,6 @@ int findSubstr(char *inpText, char *pattern)
 			}
 		}
 		remPat = pattern;
-
 		inpText++;
 	}
 	return 0;
@@ -149,7 +148,8 @@ int read_file_data(char *filename, char *buffer, size_t buffer_size)
 int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
  {
     char *line = NULL;
-    FILE *fptr;
+    FILE *fptr = NULL;
+
     if ((fptr = fopen(filename, "r")) == NULL)
     {
     	ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
@@ -172,7 +172,8 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 
 void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 {
-	char *pos;
+	char *pos = NULL;
+
 	if (read_file_data(filename, buffer, buffer_size))
 	{
 		if (check_snprintf(snprintf(buffer, buffer_size, "%s", error_message_read_file), buffer_size))
@@ -186,7 +187,8 @@ void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 
 int file_exists(char *filename)
 {
-	int fd;
+	int fd = 0;
+
 	fd = access(filename, F_OK);
 	if (fd == -1)
 		ND_printlog(ND_LOG_ERROR, "error, file %s not exits\n", filename);
@@ -198,8 +200,9 @@ int file_exists(char *filename)
 
 uint8_t read_i2c(char *path, uint8_t m_address, uint8_t m_register)
 {
-	int rc, file;
-	uint8_t read_data;
+	int rc = 0, file = 0;
+	uint8_t read_data = 0;
+
 	file = open(path, O_RDWR);
 	if (file < 0)
 		goto failed_reading;
@@ -225,7 +228,8 @@ char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 {
 	unsigned int i = 0, j = 0;
 	char tmp_input[MAX_FILE_SIZE] = {0};
-	char *output = input;
+	char *output = input, *pfound = NULL;
+
 	for (i = 0, j = 0; i < strlen(input); i++, j++) {
 		if (input[i] != ' ' && input[i] != '\r' && input[i] != '\n')
 			output[j] = input[i];
@@ -235,7 +239,7 @@ char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 	output[j] = 0;
 //filter out CRC number in calculation
 	if (file_type == FILE_JSON) {
-		char *pfound = strstr(output, CRC_STRING_JSON); //pointer to the first character found  in the string
+		pfound = strstr(output, CRC_STRING_JSON); //pointer to the first character found  in the string
 		if (pfound == NULL)
 			goto exit_filter_crc_string;
 		strncat(tmp_input, output, strlen(output) - strlen(pfound) + strlen(CRC_STRING_JSON));
@@ -245,7 +249,7 @@ char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 		strcat(tmp_input, pfound);
 		output = tmp_input;
 	} else {
-		char *pfound = strstr(output, CRC_STRING_INI); //pointer to the first character found  in the string
+		pfound = strstr(output, CRC_STRING_INI); //pointer to the first character found  in the string
 		if (pfound == NULL)
 			goto exit_filter_crc_string;
 		strncat(tmp_input, output, strlen(output) - strlen(pfound) + strlen(CRC_STRING_INI));
@@ -262,6 +266,7 @@ int place_crc_if_not_exist(char *filename, unsigned short crc)
 {
 	int fd = 0, ret = -1;
 	char write_data[SHORT_BUFFER_LEN] = {0};
+
 	if (access(filename, F_OK) != -1)
 		return 0;
 	ND_printlog(ND_LOG_INFO, "file not exists, creating file");
@@ -277,10 +282,10 @@ place_crc_if_not_exist_close:
 }
 long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 {
-	char *pfound;
-	char *eptr;
+	char *pfound = NULL, *eptr = NULL;
 	int crc_extracted = 0;
 	unsigned int i = 0;
+
 	if (file_type == FILE_JSON)
 		pfound = strstr(string_containing_crc, CRC_STRING_JSON);
 	else
@@ -301,15 +306,13 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 int crc_passed(char *filename, uint8_t type)
 {
 	size_t buffer_size = STD_FILE_LENGTH;
-	char *buffer;
-	char *buffer_filtered;
+	char *buffer = NULL, *buffer_filtered = NULL;
 	char full_buffer[MAX_FILE_SIZE] = {0};
-	unsigned char x;
-	unsigned short crc_calculated = 0xFFFF;
-	unsigned short length;
+	unsigned char x = 0;
+	unsigned short crc_calculated = 0xFFFF, length = 0;
 	char *data_p = full_buffer;
 	long crc_expected = 0;
-	//length=strlen(data_p)
+
 	// open the file for reading
 	FILE *file = fopen(filename, "r");
 	// make sure the file opened properly
@@ -318,15 +321,15 @@ int crc_passed(char *filename, uint8_t type)
 		return -1;
 	}
 	//assign memory for buffer
-	buffer = (char *)malloc(buffer_size * sizeof(char));
-	if (buffer == NULL) {
-		perror("Unable to allocate buffer");
+	if ((buffer = (char *)malloc(buffer_size * sizeof(char))) == NULL)
+	{
+		ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer, exiting");
 		exit(1);
 	}
 	//assign memory for filtered buffer
 	buffer_filtered = (char *)malloc(buffer_size * sizeof(char));
 	if (buffer_filtered == NULL) {
-		perror("Unable to allocate buffer_filtered");
+		ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer_filtered, exiting");
 		exit(1);
 	}
 	buffer_filtered[0] = '\0';
@@ -358,7 +361,6 @@ int crc_passed(char *filename, uint8_t type)
 
 char * return_current_bit_status(char *update_string)
 {
-	update_string[0] = '\0';
 	JSON_Value *root_value = json_value_init_object();
 	JSON_Object *root_object = json_value_get_object(root_value);
 	json_object_set_boolean(root_object, BIT_I2C_PMIC, latest_bittest.i2c_pmic_status);
@@ -388,11 +390,12 @@ char * return_current_bit_status(char *update_string)
 //fucnction that runs bittest full test
 int bittest_init_full()
 {
-	char return_reply[REPLY_STRING_LENGTH];
-	int32_t rtc_time_value;
+	char return_reply[REPLY_STRING_LENGTH] = {0};
+	int32_t rtc_time_value = 0;
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
 	int num_val = 0;
+
 	ND_printlog(ND_LOG_INFO, "\n\n*** Bit testing procedure started! ***\n\n");
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
 	latest_bittest.i2c_fuelgauge_status = check_i2c_validity(i2c0_path, i2c_fuelgauge_status_address, i2c_fuelgauge_status_register);
@@ -448,8 +451,7 @@ int bittest_init_full()
 
 int main(void)
 {
-
-	int socket_desc , new_socket , c , *new_sock;
+	int socket_desc = 0, new_socket = 0, c = 0 , *new_sock = NULL;
 	struct sockaddr_in server , client;
 	//bittest_init_full();
 
@@ -511,25 +513,22 @@ int main(void)
 void *connection_handler(void *socket_desc)
 {
 	//Get the socket descriptor
-	int sock = *(int*)socket_desc;
-	int read_size;
-	char client_message[SOCKET_MESSAGE_MAX_LENGTH];
-	char returnMsg[SOCKET_MESSAGE_MAX_LENGTH];
-	int fd;
+	int sock = *(int*)socket_desc, read_size = 0, fd = 0;
+	char client_message[SOCKET_MESSAGE_MAX_LENGTH] = {0};
+	char returnMsg[SOCKET_MESSAGE_MAX_LENGTH] = {0};
 	char error_msg[STD_FILE_LENGTH];
-	char read1[STD_FILE_LENGTH];
-	char read2[STD_FILE_LENGTH];
-	char read3[STD_FILE_LENGTH];
+	char read1[STD_FILE_LENGTH] = {0};
+	char read2[STD_FILE_LENGTH] = {0};
+	char read3[STD_FILE_LENGTH] = {0};
 
 	struct file_action {
 		char name [STD_FILE_LENGTH];
 		char value [STD_FILE_LENGTH];
 	};
 
-	char buffer_read_file[150];
+	char buffer_read_file[150] = {0};
 	size_t size_of_array_read_file = sizeof(buffer_read_file);
 
-	client_message[0] = '\0';
 	//Receive a message from client
 	while ((read_size = recv(sock , client_message , SOCKET_MESSAGE_MAX_LENGTH , 0)) > 0) {
 		//Send the message back to client
