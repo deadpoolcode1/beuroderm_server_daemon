@@ -532,7 +532,6 @@ void *connection_handler(void *socket_desc)
 	//Receive a message from client
 	while ((read_size = recv(sock , client_message , SOCKET_MESSAGE_MAX_LENGTH , 0)) > 0) {
 		//Send the message back to client
-		//write(sock , client_message , strlen(client_message));
 		ND_printlog(ND_LOG_INFO, "message:%s\n", client_message);
 		//now make action according to messaage
 		if (findSubstr(client_message, "write_file") > -1) {
@@ -555,7 +554,8 @@ void *connection_handler(void *socket_desc)
 				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			} else {
-				write(fd, commandFile.value, strlen(commandFile.value));
+				if (write(fd, commandFile.value, strlen(commandFile.value)) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				safe_close(fd);
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
@@ -572,7 +572,8 @@ void *connection_handler(void *socket_desc)
 			if ((fd = open_file(commandFile.name, O_RDONLY, EMPTY_MODE)) < 0) {
 				if (check_snprintf(snprintf(error_msg, sizeof(error_msg) / sizeof(char), "%s", "error, unable to read the value"), sizeof(error_msg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				write(sock , error_msg , strlen(error_msg));
+				if (write(sock , error_msg , strlen(error_msg)) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_NACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
@@ -597,14 +598,16 @@ void *connection_handler(void *socket_desc)
 				bittest_init_full();
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				write(sock , returnMsg , strlen(returnMsg));
+				if (write(sock , returnMsg , strlen(returnMsg)) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			}
 		} else if (findSubstr(client_message, "read_bit:bittest") > -1) {
 			/*action is bittest_read
 			*/
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			write(sock , returnMsg , strlen(returnMsg));
+			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "read_time") > -1) {
 			/*action is reading current time
 			example: ./send.o 10.0.0.36 read_time
@@ -680,7 +683,8 @@ void *connection_handler(void *socket_desc)
 			read_file_data_no_space("/data/fs_bsp_version", buffer_read_file, size_of_array_read_file);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "build_date", read1, "fw_version", read2, "device_name", read3), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			write(sock , returnMsg , strlen(returnMsg));
+			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		}
 
 
@@ -690,7 +694,8 @@ void *connection_handler(void *socket_desc)
 			read_file_data_no_space("/sys/class/hwmon/hwmon1/temp1_input", read2, size_of_array_read_file);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\"} \n", "temp_cpu", read1, "temp_wc", read2), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			write(sock , returnMsg , strlen(returnMsg));
+			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "read_command:hw_info") > -1) {
 			//Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
 			read_file_data_no_space("/sys/class/switch/hall_detect/state", read1, size_of_array_read_file);
@@ -700,12 +705,19 @@ void *connection_handler(void *socket_desc)
 						    , "battery_status_charging", read2,
 						    "w_charger_state", read3),  sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			write(sock , returnMsg , strlen(returnMsg));
+			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "read_command:config") > -1) {
 			if ((read_config_file_data("/data/config.file", client_message, SOCKET_MESSAGE_MAX_LENGTH)))
-				write(sock , error_message_read_file , strlen(error_message_read_file));
+			{
+				if (write(sock , error_message_read_file , strlen(error_message_read_file)) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			}
 			else
-				write(sock , client_message , strlen(client_message));
+			{
+				if (write(sock , client_message , strlen(client_message)) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			}
 		} else if (findSubstr(client_message, "read_command:api_version") > -1) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", API_VERSION), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
@@ -772,7 +784,8 @@ void *connection_handler(void *socket_desc)
 			} else {
 				if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				write(fd, "POR", strlen("POR"));
+				if (write(fd, "POR", strlen("POR")) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				ND_printlog(ND_LOG_INFO, "set watchdog file to 0 since state has been read");
 				safe_close(fd);
 			}
