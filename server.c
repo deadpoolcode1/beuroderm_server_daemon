@@ -128,18 +128,21 @@ int read_file_data(char *filename, char *buffer, size_t buffer_size)
 {
 	FILE *fptr = NULL;
 
-	if ((fptr = fopen(filename, "r")) == NULL) {
-		ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
-		return -1;
-	}        // read each line and print it to the screen
+	if ((fptr = fopen(filename, "r")) == NULL)
+		goto read_file_data_error;
 	while (-1 != getline(&buffer, &buffer_size, fptr)) {
 	}
-	fflush(stdout);
+	if (fflush(stdout) == EOF)
+		goto read_file_data_error;
 	// make sure we close the filewhen we're
 	// finished
-	fclose(fptr);
-
+	if (fclose(fptr) == EOF)
+		goto read_file_data_error;
 	return 0;
+
+read_file_data_error:
+	ND_printlog(ND_LOG_ERROR, "Error, failed reading file %s, %s", filename, strerror(errno));
+	return -1;
 }
 
 
@@ -150,27 +153,28 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 	FILE *fptr = NULL;
 	size_t line_size = NULL;
 
-	if ((fptr = fopen(filename, "r")) == NULL) {
-		ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
-		return -1;
-	}
+	if ((fptr = fopen(filename, "r")) == NULL)
+		goto read_config_file_data_error;
 	while (getline(&line, &line_size, fptr) != -1) {
 		if (strlen(line) > MIN_CONFIG_LINE_LEN) {
 			ND_printlog(ND_LOG_ERROR, "strlen(buffer) %d\n", strlen(buffer));
 			ND_printlog(ND_LOG_ERROR, "buffer_size %d\n", buffer_size);
 			ND_printlog(ND_LOG_ERROR, "line %s\n", line);
 			if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size - strlen(buffer), "%s", line), buffer_size))
-				return -1;
+				goto read_config_file_data_error;
 		}
 	}
-	fflush(stdout);
-
+	if (fflush(stdout) == EOF)
+		goto read_config_file_data_error;
 	// make sure we close the filewhen we're
 	// finished
 	safe_close_stream(fptr);
 
 	return 0;
-	// safe_close_stream(fptr);
+
+read_config_file_data_error:
+	ND_printlog(ND_LOG_ERROR, "Error, failed reading config file %s, %s", filename, strerror(errno));
+	return -1;
 }
 
 
@@ -204,7 +208,7 @@ int file_exists(char *filename)
 uint8_t read_i2c(char *path, uint8_t m_address, uint8_t m_register)
 {
 	int rc = 0, file = 0;
-	uint8_t read_data = 0;
+	int16_t read_data = 0;
 
 	file = open(path, O_RDWR);
 	if (file < 0)
@@ -212,10 +216,11 @@ uint8_t read_i2c(char *path, uint8_t m_address, uint8_t m_register)
 	rc = ioctl(file, I2C_SLAVE_FORCE, m_address);
 	if (rc < 0)
 		goto failed_reading;
-	read_data = i2c_smbus_read_byte_data(file, m_register);
+	if ((read_data = i2c_smbus_read_byte_data(file, m_register)) == -1)
+		goto failed_reading;
 	return read_data;
 failed_reading:
-	err(errno, "failed reading");
+	ND_printlog(ND_LOG_ERROR, "error, failed reading i2c errno:%s\n", strerror(errno));
 	return read_data;
 }
 
@@ -270,25 +275,6 @@ exit_filter_crc_string:
 	return (input);
 }
 
-
-int place_crc_if_not_exist(char *filename, unsigned short crc)
-{
-	int fd = 0, ret = -1;
-	char write_data[SHORT_BUFFER_LEN] = {0};
-
-	if (access(filename, F_OK) != -1)
-		return 0;
-	ND_printlog(ND_LOG_INFO, "file not exists, creating file");
-	if ((fd = open_file(filename, O_RDWR | O_CREAT, 0666)) < 0)
-		return -1;
-	if (check_snprintf(snprintf(write_data, sizeof(write_data) / sizeof(char), "%d", crc),  sizeof(write_data) / sizeof(char)))
-		goto place_crc_if_not_exist_close;
-	write(fd, write_data, strlen(write_data));
-	ret = 0;
-place_crc_if_not_exist_close:
-	close(fd);
-	return ret;
-}
 long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 {
 	char *pfound = NULL, *eptr = NULL;
@@ -345,11 +331,13 @@ int crc_passed(char *filename, uint8_t type)
 		if (check_snprintf(snprintf(&full_buffer[strlen(full_buffer)], sizeof(full_buffer) / sizeof(char), "%s", buffer), sizeof(full_buffer) / sizeof(char)))
 			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 	}
-	fclose(file);
+	if (fclose(file) == EOF)
+		ND_printlog(ND_LOG_ERROR, "Error,closing file %s, %s", filename, strerror(errno));
 	crc_expected = extract_crc_from_file(full_buffer, type);
 	if (check_snprintf(snprintf(full_buffer, sizeof(full_buffer) / sizeof(char), "%s", filter_crc_string(full_buffer, type, sizeof(full_buffer) / sizeof(char))), sizeof(full_buffer) / sizeof(char)))
 		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-	fflush(stdout);
+	if (fflush(stdout) == EOF)
+		ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 	//calculate CRC
 	length = strlen(full_buffer);
 	while (length--) {
@@ -448,8 +436,13 @@ int bittest_init_full()
 		latest_bittest.apk_crc_status = PASSED;
 	else
 		latest_bittest.apk_crc_status = FAILED;
-	strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p);
-	return_current_bit_status(return_reply);
+	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0)
+	{
+		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
+		return -1;
+	}
+	if (return_current_bit_status(return_reply) == NULL)
+		return -1;
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
 	return 0;
 }
@@ -543,7 +536,8 @@ void *connection_handler(void *socket_desc)
 		ND_printlog(ND_LOG_INFO, "message:%s\n", client_message);
 		//now make action according to messaage
 		if (findSubstr(client_message, "write_file") > -1) {
-			fflush(stdin);
+			if (fflush(stdin) == EOF)
+				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing to a file
 			example: write_file:/sys/class/gpio/export=5
 			*/
@@ -558,13 +552,15 @@ void *connection_handler(void *socket_desc)
 			if (fd < 0) {
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_NACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				send(sock , returnMsg , strlen(returnMsg), 0);
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			} else {
 				write(fd, commandFile.value, strlen(commandFile.value));
 				safe_close(fd);
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				send(sock , returnMsg , strlen(returnMsg), 0);
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			}
 		} else if (findSubstr(client_message, "read_file") > -1) {
 			/*action is reading a file
@@ -579,13 +575,15 @@ void *connection_handler(void *socket_desc)
 				write(sock , error_msg , strlen(error_msg));
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_NACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				send(sock , returnMsg , strlen(returnMsg), 0);
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			} else {
 
 				read(fd, commandFile.value, sizeof(commandFile.value));
 				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
 				safe_close(fd);
-				send(sock , commandFile.value , sizeof(commandFile.value), 0);
+				if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				commandFile.value[0] = '\0';
 			}
 		} else if (findSubstr(client_message, "write_bit:bittest") > -1) {
@@ -614,10 +612,12 @@ void *connection_handler(void *socket_desc)
 			time_t t = time(NULL);
 			struct tm * p = localtime(&t);
 			strftime(returnMsg, REPLY_STRING_LENGTH, "%c" , p);
-			send(sock , returnMsg , strlen(returnMsg), 0);
+			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "write_time") > -1) {
 			pid_t my_pid, parent_pid, child_pid;
-			fflush(stdin);
+			if (fflush(stdin) == EOF)
+				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing time
 			example: ./send.o 10.0.0.36 write_time:060911052016.00
 			*/
@@ -626,7 +626,8 @@ void *connection_handler(void *socket_desc)
 			ND_printlog(ND_LOG_INFO, "time:%s\n", commandFile.name);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK) , sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			send(sock , returnMsg , strlen(returnMsg), 0);
+			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			my_pid = getpid();
 			parent_pid = getppid();
 			/* print error message if fork() fails */
@@ -643,7 +644,8 @@ void *connection_handler(void *socket_desc)
 
 		} else if (findSubstr(client_message, "write_sleep_time") > -1) {
 			pid_t my_pid, parent_pid, child_pid;
-			fflush(stdin);
+			if (fflush(stdin) == EOF)
+				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing sleep time
 			example: ./send.o 10.0.0.36 write_sleep_time:30000
 			*/
@@ -652,7 +654,8 @@ void *connection_handler(void *socket_desc)
 			ND_printlog(ND_LOG_INFO, "sleep time:%s\n", commandFile.name);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK) , sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			send(sock , returnMsg , strlen(returnMsg), 0);
+			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			my_pid = getpid();
 			parent_pid = getppid();
 			/* print error message if fork() fails */
@@ -706,7 +709,8 @@ void *connection_handler(void *socket_desc)
 		} else if (findSubstr(client_message, "read_command:api_version") > -1) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", API_VERSION), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			send(sock , returnMsg , strlen(returnMsg), 0);
+			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "read_command:device_year") > -1) {
 			if (ini_parse("/data/config.file", handler, &config) < 0) {
 				ND_printlog(ND_LOG_ERROR, "error, Can not load 'test.ini'\n");
@@ -715,7 +719,8 @@ void *connection_handler(void *socket_desc)
 			ND_printlog(ND_LOG_INFO, "Config loaded from '/data/config.file': device_year=%s\n", config.year);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", config.year), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			send(sock , returnMsg , strlen(returnMsg), 0);
+			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "write_command:alarms") > -1) { //this is a temp fix for passing alarm status untill unify with interrupt script
 			char alarm_status [7];
 			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", client_message + findSubstr(client_message, "write_command:alarms") + strlen("write_command:alarms") - 1), sizeof(alarm_status) / sizeof(char)))
@@ -728,7 +733,8 @@ void *connection_handler(void *socket_desc)
 			alarms.wc_error_alarm = (uint8_t)(alarm_status[5] - '0');
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			send(sock , returnMsg , strlen(returnMsg), 0);
+			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "read_command:alarms") > -1) {
 			JSON_Value *root_value = json_value_init_object();
 			JSON_Object *root_object = json_value_get_object(root_value);
@@ -744,7 +750,8 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			json_free_serialized_string(serialized_string);
 			json_value_free(root_value);
-			send(sock , returnMsg , strlen(returnMsg), 0);
+			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "read_command:last_reboot_reason") > -1) {
 			fd = open_file(LAST_REBOOT_FILE_PATH, O_RDONLY, EMPTY_MODE);
 			if (fd < 0) {
@@ -755,13 +762,16 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
 				safe_close(fd);
 			}
-			send(sock , commandFile.value , strlen(commandFile.value), 0);
+			if (send(sock , commandFile.value , strlen(commandFile.value), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if (findSubstr(client_message, "write_command:last_reboot_reason_done") > -1) {
 			fd = open_file(LAST_REBOOT_FILE_PATH, O_RDWR, EMPTY_MODE);
 			if (fd < 0) {
-				send(sock , REPLY_NACK , strlen(REPLY_NACK), 0);
+				if (send(sock , REPLY_NACK , strlen(REPLY_NACK), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			} else {
-				send(sock , REPLY_ACK , strlen(REPLY_ACK), 0);
+				if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				write(fd, "POR", strlen("POR"));
 				ND_printlog(ND_LOG_INFO, "set watchdog file to 0 since state has been read");
 				safe_close(fd);
@@ -772,7 +782,8 @@ void *connection_handler(void *socket_desc)
 
 	if (read_size == 0) {
 		puts("server Client disconnected");
-		fflush(stdout);
+		if (fflush(stdout) == EOF)
+			ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 	} else if (read_size == -1) {
 		ND_printlog(ND_LOG_ERROR, "error, server recv failed");
 	}
