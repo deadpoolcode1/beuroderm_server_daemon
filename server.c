@@ -125,64 +125,60 @@ char * trim(char * s)
 
 
 int read_file_data(char *filename, char *buffer, size_t buffer_size)
- {
-       FILE *fptr = NULL;
+{
+	FILE *fptr = NULL;
 
-       if ((fptr = fopen(filename, "r")) == NULL)
-       {
-    	   ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
-    	   return -1;
-       }        // read each line and print it to the screen
-       while (-1 != getline(&buffer, &buffer_size, fptr)) {
-       }
-       fflush(stdout);
-        // make sure we close the filewhen we're
-        // finished
-       fclose(fptr);
+	if ((fptr = fopen(filename, "r")) == NULL) {
+		ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
+		return -1;
+	}        // read each line and print it to the screen
+	while (-1 != getline(&buffer, &buffer_size, fptr)) {
+	}
+	fflush(stdout);
+	// make sure we close the filewhen we're
+	// finished
+	fclose(fptr);
 
-       return 0;
- }
+	return 0;
+}
 
 
 
 int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
- {
-    char *line = NULL;
-    FILE *fptr = NULL;
-    size_t line_size = NULL;
+{
+	char *line = NULL;
+	FILE *fptr = NULL;
+	size_t line_size = NULL;
 
-    if ((fptr = fopen(filename, "r")) == NULL)
-    {
-    	ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
-    	return -1;
-    }
-    while (getline(&line, &line_size, fptr) != -1) {
-    	if (strlen(line) > MIN_CONFIG_LINE_LEN)
-    	{
-    		ND_printlog(ND_LOG_ERROR, "strlen(buffer) %d\n", strlen(buffer));
-    		ND_printlog(ND_LOG_ERROR, "buffer_size %d\n", buffer_size);
-    		ND_printlog(ND_LOG_ERROR, "line %s\n", line);
-    		if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size - strlen(buffer), "%s", line), buffer_size))
-    			return -1;
-    	}
-    }
-       fflush(stdout);
+	if ((fptr = fopen(filename, "r")) == NULL) {
+		ND_printlog(ND_LOG_ERROR, "Error failed opening file %s", filename);
+		return -1;
+	}
+	while (getline(&line, &line_size, fptr) != -1) {
+		if (strlen(line) > MIN_CONFIG_LINE_LEN) {
+			ND_printlog(ND_LOG_ERROR, "strlen(buffer) %d\n", strlen(buffer));
+			ND_printlog(ND_LOG_ERROR, "buffer_size %d\n", buffer_size);
+			ND_printlog(ND_LOG_ERROR, "line %s\n", line);
+			if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size - strlen(buffer), "%s", line), buffer_size))
+				return -1;
+		}
+	}
+	fflush(stdout);
 
-    // make sure we close the filewhen we're
-    // finished
-       safe_close_stream(fptr);
+	// make sure we close the filewhen we're
+	// finished
+	safe_close_stream(fptr);
 
-       return 0;
-      // safe_close_stream(fptr);
- }
+	return 0;
+	// safe_close_stream(fptr);
+}
 
 
 void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 {
 	char *pos = NULL;
 
-	if (read_file_data(filename, buffer, buffer_size))
-	{
+	if (read_file_data(filename, buffer, buffer_size)) {
 		if (check_snprintf(snprintf(buffer, buffer_size, "%s", error_message_read_file), buffer_size))
 			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		return;
@@ -262,15 +258,15 @@ char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 		pfound = strstr(output, CRC_STRING_INI); //pointer to the first character found  in the string
 		if (pfound == NULL)
 			goto exit_filter_crc_string;
-		if (check_snprintf(snprintf(tmp_input + strlen(tmp_input), strlen(output) - strlen(pfound) + strlen(CRC_STRING_INI)+1, "%s", output), MAX_FILE_SIZE))
-			ND_printlog(ND_LOG_ERROR, "tmp_input%s\n",tmp_input);
+		if (check_snprintf(snprintf(tmp_input + strlen(tmp_input), strlen(output) - strlen(pfound) + strlen(CRC_STRING_INI) + 1, "%s", output), MAX_FILE_SIZE))
+			ND_printlog(ND_LOG_ERROR, "tmp_input%s\n", tmp_input);
 
 		//	return input;
 		output = tmp_input;
 	}
 exit_filter_crc_string:
-    if (check_snprintf(snprintf(input, input_length, "%s", output), input_length))
-    	ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+	if (check_snprintf(snprintf(input, input_length, "%s", output), input_length))
+		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 	return (input);
 }
 
@@ -286,7 +282,7 @@ int place_crc_if_not_exist(char *filename, unsigned short crc)
 	if ((fd = open_file(filename, O_RDWR | O_CREAT, 0666)) < 0)
 		return -1;
 	if (check_snprintf(snprintf(write_data, sizeof(write_data) / sizeof(char), "%d", crc),  sizeof(write_data) / sizeof(char)))
-			goto place_crc_if_not_exist_close;
+		goto place_crc_if_not_exist_close;
 	write(fd, write_data, strlen(write_data));
 	ret = 0;
 place_crc_if_not_exist_close:
@@ -334,8 +330,7 @@ int crc_passed(char *filename, uint8_t type)
 		return -1;
 	}
 	//assign memory for buffer
-	if ((buffer = (char *)malloc(buffer_size * sizeof(char))) == NULL)
-	{
+	if ((buffer = (char *)malloc(buffer_size * sizeof(char))) == NULL) {
 		ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer, exiting");
 		exit(1);
 	}
@@ -426,7 +421,7 @@ int bittest_init_full()
 		latest_bittest.ble_status = FAILED;
 	char *filebuffer = malloc(SHORT_BUFFER_LEN * sizeof(char));
 	if (read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))
-			return -1;
+		return -1;
 	if (str2int(&num_val, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) != STR2INT_SUCCESS)
 		return -1;
 	if (num_val > 0)
@@ -569,7 +564,7 @@ void *connection_handler(void *socket_desc)
 				safe_close(fd);
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				send(sock , returnMsg , strlen(returnMsg));
+				send(sock , returnMsg , strlen(returnMsg), 0);
 			}
 		} else if (findSubstr(client_message, "read_file") > -1) {
 			/*action is reading a file
@@ -578,8 +573,7 @@ void *connection_handler(void *socket_desc)
 			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", client_message + findSubstr(client_message, ":")), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "file to read:%s\n", commandFile.name);
-			if ((fd = open_file(commandFile.name, O_RDONLY, EMPTY_MODE)) < 0)
-			{
+			if ((fd = open_file(commandFile.name, O_RDONLY, EMPTY_MODE)) < 0) {
 				if (check_snprintf(snprintf(error_msg, sizeof(error_msg) / sizeof(char), "%s", "error, unable to read the value"), sizeof(error_msg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				write(sock , error_msg , strlen(error_msg));
@@ -700,8 +694,8 @@ void *connection_handler(void *socket_desc)
 			read_file_data_no_space("/sys/class/power_supply/max77818-charger/online", read2, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/switch/hall_detect/state", read3, size_of_array_read_file);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status", read1
-					, "battery_status_charging", read2,
-					"w_charger_state", read3),  sizeof(returnMsg) / sizeof(char)))
+						    , "battery_status_charging", read2,
+						    "w_charger_state", read3),  sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			write(sock , returnMsg , strlen(returnMsg));
 		} else if (findSubstr(client_message, "read_command:config") > -1) {
@@ -723,8 +717,8 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			send(sock , returnMsg , strlen(returnMsg), 0);
 		} else if (findSubstr(client_message, "write_command:alarms") > -1) { //this is a temp fix for passing alarm status untill unify with interrupt script
-			char alarm_status [6];
-			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", client_message + findSubstr(client_message, "write_command:alarms") + strlen("write_command:alarm")), sizeof(alarm_status) / sizeof(char)))
+			char alarm_status [7];
+			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", client_message + findSubstr(client_message, "write_command:alarms") + strlen("write_command:alarms") - 1), sizeof(alarm_status) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			alarms.cpu_high_temperature_alarm = (uint8_t)(alarm_status[0] - '0');
 			alarms.cpu_critical_temperature_alarm = (uint8_t)(alarm_status[1] - '0');

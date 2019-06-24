@@ -39,16 +39,14 @@ int str2int(int *out, char *s, int max_spaces, int size_of_string)
 	int i = 0, j = 0;
 	char convert_string [size_of_string];
 
-	if (check_snprintf(snprintf(convert_string, sizeof(convert_string) / sizeof(char), "%s", s), sizeof(convert_string) / sizeof(char)) != 0)
-	{
-		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_INCONVERTIBLE");	
+	if (check_snprintf(snprintf(convert_string, sizeof(convert_string) / sizeof(char), "%s", s), sizeof(convert_string) / sizeof(char)) != 0) {
+		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_INCONVERTIBLE");
 		return STR2INT_INCONVERTIBLE;
 	}
 	//remove trailing spaces
 	while (isspace(convert_string[i]) && (i < max_spaces) && (i < size_of_string - 1))
 		i++;
-	if (!(isdigit(convert_string[i])))
-	{
+	if (!(isdigit(convert_string[i]))) {
 		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_INCONVERTIBLE");
 		return STR2INT_INCONVERTIBLE;
 	}
@@ -63,18 +61,15 @@ int str2int(int *out, char *s, int max_spaces, int size_of_string)
 	}
 	long l = strtol(convert_string + i, &end, 10);
 	/* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-	if (l > INT_MAX || (errno == ERANGE && l == LONG_MAX))
-	{
+	if (l > INT_MAX || (errno == ERANGE && l == LONG_MAX)) {
 		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_OVERFLOW");
 		return STR2INT_OVERFLOW;
 	}
-	if (l < INT_MIN || (errno == ERANGE && l == LONG_MIN))
-	{
+	if (l < INT_MIN || (errno == ERANGE && l == LONG_MIN)) {
 		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_UNDERFLOW");
 		return STR2INT_UNDERFLOW;
 	}
-	if (*end != '\0')
-	{
+	if (*end != '\0') {
 		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_UNDERFLOW");
 		return STR2INT_INCONVERTIBLE;
 	}
@@ -114,34 +109,34 @@ int safe_close(int fd)
 
 void safe_close_stream(FILE *fd)
 {
-        int err = 0;
-        if ((err = fclose(fd))) {
-                ND_printlog(ND_LOG_ERROR, "Error number: %d closing file", err);//after failed fclose behaviour is unexpected
-                exit(err);
-        }
+	int err = 0;
+	if ((err = fclose(fd))) {
+		ND_printlog(ND_LOG_ERROR, "Error number: %d closing file", err);//after failed fclose behaviour is unexpected
+		exit(err);
+	}
 }
 
 int safe_write_file_stream(char *filename, char *data)
 {
-        FILE *fptr = NULL;
-        unsigned int ret = 0;
+	FILE *fptr = NULL;
+	unsigned int ret = 0;
 
-        ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
- 	if ((fptr = fopen(filename, "w")) == NULL)
-                return -1;
-        if (flock(fileno(fptr), LOCK_EX | LOCK_NB)) {
-                ND_printlog(ND_LOG_ERROR, "Error failed locking file");
-                goto write_file_error_after_open;
-        }
-        if ((ret = fprintf(fptr, "%s", data)) != strlen(data))
-                goto write_file_error_after_lock;
-        safe_close_stream(fptr);
-        return 0;
+	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
+	if ((fptr = fopen(filename, "w")) == NULL)
+		return -1;
+	if (flock(fileno(fptr), LOCK_EX | LOCK_NB)) {
+		ND_printlog(ND_LOG_ERROR, "Error failed locking file");
+		goto write_file_error_after_open;
+	}
+	if ((ret = fprintf(fptr, "%s", data)) != strlen(data))
+		goto write_file_error_after_lock;
+	safe_close_stream(fptr);
+	return 0;
 
 write_file_error_after_lock:
-        if (flock(fileno(fptr), LOCK_UN))
-                ND_printlog(ND_LOG_ERROR, "Error failed unlocking file");
+	if (flock(fileno(fptr), LOCK_UN))
+		ND_printlog(ND_LOG_ERROR, "Error failed unlocking file");
 write_file_error_after_open:
-        safe_close_stream(fptr);
-        return -1;
+	safe_close_stream(fptr);
+	return -1;
 }
