@@ -528,7 +528,7 @@ void *connection_handler(void *socket_desc)
 	char read1[STD_FILE_LENGTH] = {0};
 	char read2[STD_FILE_LENGTH] = {0};
 	char read3[STD_FILE_LENGTH] = {0};
-	char buffer_read_file[150] = {0};
+	char buffer_read_file[FILE_BUFFER_LEN] = {0};
 	char type[STD_FILE_LENGTH] = {0};
 	size_t size_of_array_read_file = sizeof(buffer_read_file);
 	struct file_action {

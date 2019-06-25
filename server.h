@@ -21,8 +21,8 @@
 #define BIT_APKCRC "BIT_APKCRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
 #define SOCKET_MESSAGE_MAX_LENGTH 5000
-#define REPLY_ACK "ACK"
-#define REPLY_NACK "NACK"
+#define REPLY_ACK "ACK\n"
+#define REPLY_NACK "NACK\n"
 #define API_VERSION "4"
 #define MAX_FILE_SIZE 10000
 #define CRC_STRING_JSON "\"crc\":\""
@@ -65,6 +65,7 @@
 #define MIN_CONFIG_LINE_LEN 3
 #define SHORT_BUFFER_LEN 10
 #define RTC_DATA_LEN 20
+#define FILE_BUFFER_LEN 150
 typedef struct {
 	char* year;
 } configuration;
