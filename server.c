@@ -246,13 +246,10 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 	int crc_extracted = 0;
 	unsigned int i = 0;
 
-	if (file_type == FILE_JSON)
-	{
+	if (file_type == FILE_JSON) {
 		if ((pfound = strstr(string_containing_crc, CRC_STRING_JSON)) == NULL)
 			goto extract_crc_from_file_error;
-	}
-	else
-	{
+	} else {
 		if ((pfound = strstr(string_containing_crc, CRC_STRING_INI)) == NULL)
 			goto extract_crc_from_file_error;
 	}
@@ -265,8 +262,9 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 		}
 	}
 	return crc_extracted;
-extract_crc_from_file_error:  ND_printlog(ND_LOG_ERROR, "CRC not found\n");
-return -1;
+extract_crc_from_file_error:
+	ND_printlog(ND_LOG_ERROR, "CRC not found\n");
+	return -1;
 }
 
 int crc_passed(char *filename, uint8_t type)
@@ -431,8 +429,7 @@ int bittest_init_full()
 		latest_bittest.apk_crc_status = PASSED;
 	else
 		latest_bittest.apk_crc_status = FAILED;
-	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0)
-	{
+	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0) {
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
 		goto bittest_init_full_free_filebufferl;
 	}
@@ -443,11 +440,13 @@ int bittest_init_full()
 	free(filebufferl);
 	return 0;
 
-bittest_init_full_free_filebufferl: free(filebufferl);
+bittest_init_full_free_filebufferl:
+	free(filebufferl);
 
-bittest_init_full_free_filebuffer: free(filebuffer);
+bittest_init_full_free_filebuffer:
+	free(filebuffer);
 
-return -1;
+	return -1;
 
 }
 
@@ -548,14 +547,14 @@ void *connection_handler(void *socket_desc)
 			/*action is writing to a file
 			example: write_file:/sys/class/gpio/export=5
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if ((ptr = strstr(commandFile.name, "=")) == NULL)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			*ptr  =  '\0';
-		//	commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
+			//	commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
 			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
-			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=")+1), sizeof(commandFile.value) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
 			fd = open_file(commandFile.name, O_RDWR, EMPTY_MODE);
@@ -577,7 +576,7 @@ void *connection_handler(void *socket_desc)
 			/*action is reading a file
 			example: read_file:/sys/class/gpio/gpio5/value
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s",  strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s",  strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "file to read:%s\n", commandFile.name);
 			if ((fd = open_file(commandFile.name, O_RDONLY, EMPTY_MODE)) < 0) {
@@ -601,7 +600,7 @@ void *connection_handler(void *socket_desc)
 		} else if ((ptr = strstr(client_message, "write_bit:bittest")) != NULL) {
 			/*action is bittest_init
 			*/
-			if (check_snprintf(snprintf(type, sizeof(type) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(type) / sizeof(char)))
+			if (check_snprintf(snprintf(type, sizeof(type) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(type) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "bittest init type:%s\n", type);
 			bittest_init_full();
@@ -632,7 +631,7 @@ void *connection_handler(void *socket_desc)
 			/*action is writing time
 			example: ./send.o 10.0.0.36 write_time:060911052016.00
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "time:%s\n", commandFile.name);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK) , sizeof(returnMsg) / sizeof(char)))
@@ -660,7 +659,7 @@ void *connection_handler(void *socket_desc)
 			/*action is writing sleep time
 			example: ./send.o 10.0.0.36 write_sleep_time:30000
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "sleep time:%s\n", commandFile.name);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK) , sizeof(returnMsg) / sizeof(char)))
@@ -716,13 +715,10 @@ void *connection_handler(void *socket_desc)
 			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "read_command:config")) != NULL) {
-			if ((read_config_file_data("/data/config.file", client_message, SOCKET_MESSAGE_MAX_LENGTH)))
-			{
+			if ((read_config_file_data("/data/config.file", client_message, SOCKET_MESSAGE_MAX_LENGTH))) {
 				if (write(sock , error_message_read_file , strlen(error_message_read_file)) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			}
-			else
-			{
+			} else {
 				if (write(sock , client_message , strlen(client_message)) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			}
@@ -743,7 +739,7 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "write_command:alarms")) != NULL) { //this is a temp fix for passing alarm status untill unify with interrupt script
 			char alarm_status [7];
-			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", ptr + strlen("write_command:alarms") ), sizeof(alarm_status) / sizeof(char)))
+			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", ptr + strlen("write_command:alarms")), sizeof(alarm_status) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			alarms.cpu_high_temperature_alarm = (uint8_t)(alarm_status[0] - '0');
 			alarms.cpu_critical_temperature_alarm = (uint8_t)(alarm_status[1] - '0');
