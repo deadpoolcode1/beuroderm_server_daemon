@@ -165,8 +165,7 @@ int file_exists(char *filename)
 {
 	int fd = 0;
 
-	fd = access(filename, F_OK);
-	if (fd == -1)
+	if ((fd = access(filename, F_OK)) == -1)
 		ND_printlog(ND_LOG_ERROR, "error, file %s not exits\n", filename);
 
 	return fd;
@@ -216,21 +215,18 @@ char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 	output[j] = 0;
 //filter out CRC number in calculation
 	if (file_type == FILE_JSON) {
-		pfound = strstr(output, CRC_STRING_JSON); //pointer to the first character found  in the string
-		if (pfound == NULL)
+		if ((pfound = strstr(output, CRC_STRING_JSON)) == NULL)
 			goto exit_filter_crc_string;
 		output[strlen(output) - strlen(pfound) + strlen(CRC_STRING_JSON)] = '\0';
 		if (check_snprintf(snprintf(tmp_input + strlen(tmp_input), MAX_FILE_SIZE - strlen(tmp_input), "%s", output), MAX_FILE_SIZE))
 			return input;
-		pfound = strstr(pfound + strlen(CRC_STRING_JSON) + 1, "\"");
-		if (pfound == NULL)
+		if ((pfound = strstr(pfound + strlen(CRC_STRING_JSON) + 1, "\"")) == NULL)
 			return ""; //wrong file format, fail the test
 		if (check_snprintf(snprintf(tmp_input + strlen(tmp_input), MAX_FILE_SIZE - strlen(tmp_input), "%s", pfound), MAX_FILE_SIZE))
 			return input;
 		output = tmp_input;
 	} else {
-		pfound = strstr(output, CRC_STRING_INI); //pointer to the first character found  in the string
-		if (pfound == NULL)
+		if ((pfound = strstr(output, CRC_STRING_INI)) == NULL) //pointer to the first character found  in the string
 			goto exit_filter_crc_string;
 		if (check_snprintf(snprintf(tmp_input + strlen(tmp_input), strlen(output) - strlen(pfound) + strlen(CRC_STRING_INI) + 1, "%s", output), MAX_FILE_SIZE))
 			ND_printlog(ND_LOG_ERROR, "tmp_input%s\n", tmp_input);
@@ -251,11 +247,15 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 	unsigned int i = 0;
 
 	if (file_type == FILE_JSON)
-		pfound = strstr(string_containing_crc, CRC_STRING_JSON);
+	{
+		if ((pfound = strstr(string_containing_crc, CRC_STRING_JSON)) == NULL)
+			goto extract_crc_from_file_error;
+	}
 	else
-		pfound = strstr(string_containing_crc, CRC_STRING_INI);
-	if (pfound == NULL)
-		return 0;
+	{
+		if ((pfound = strstr(string_containing_crc, CRC_STRING_INI)) == NULL)
+			goto extract_crc_from_file_error;
+	}
 	for (; i < strlen(pfound); i++) {
 		if (isdigit(pfound[i])) {
 			if (str2int(&crc_extracted, pfound + i, MAX_ALLOWED_TRAILING_SPACES, STD_FILE_LENGTH) != STR2INT_SUCCESS)
@@ -265,6 +265,8 @@ long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 		}
 	}
 	return crc_extracted;
+extract_crc_from_file_error:  ND_printlog(ND_LOG_ERROR, "CRC not found\n");
+return -1;
 }
 
 int crc_passed(char *filename, uint8_t type)
@@ -290,8 +292,7 @@ int crc_passed(char *filename, uint8_t type)
 		exit(1);
 	}
 	//assign memory for filtered buffer
-	buffer_filtered = (char *)malloc(buffer_size * sizeof(char));
-	if (buffer_filtered == NULL) {
+	if ((buffer_filtered = (char *)malloc(buffer_size * sizeof(char))) == NULL) {
 		ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer_filtered, exiting");
 		exit(1);
 	}
@@ -324,27 +325,51 @@ int crc_passed(char *filename, uint8_t type)
 
 char * return_current_bit_status(char *update_string)
 {
-	JSON_Value *root_value = json_value_init_object();
-	JSON_Object *root_object = json_value_get_object(root_value);
+	JSON_Value *root_value;
+	JSON_Object *root_object;
 
-	json_object_set_boolean(root_object, BIT_I2C_PMIC, latest_bittest.i2c_pmic_status);
-	json_object_set_boolean(root_object, BIT_I2C_FUELGAUGE, latest_bittest.i2c_fuelgauge_status);
-	json_object_set_boolean(root_object, BIT_I2C_MAX77818TOP, latest_bittest.i2c_max77818top_status);
-	json_object_set_boolean(root_object, BIT_I2C_MAX77818CHARGER, latest_bittest.i2c_max77818charger_status);
-	json_object_set_boolean(root_object, BIT_I2C_DISPLAYTOUCHPANEL, latest_bittest.i2c_displaytouchpanel_status);
-	json_object_set_boolean(root_object, BIT_I2C_MAX77816DC3, latest_bittest.i2c_max77816dc3_status);
-	json_object_set_boolean(root_object, BIT_I2C_RTC, latest_bittest.i2c_rtc_status);
-	json_object_set_boolean(root_object, BIT_I2C_RTCMEMBLOCK0, latest_bittest.i2c_rtcmemblock0_status);
-	json_object_set_boolean(root_object, BIT_I2C_RTCMEMBLOCK1, latest_bittest.i2c_rtcmemblock1_status);
-	json_object_set_boolean(root_object, BIT_I2C_CRADLETEMPSENSOR, latest_bittest.i2c_cradletempsensor_status);
-	json_object_set_boolean(root_object, BIT_I2C_IOEXPENDER, latest_bittest.i2c_ioexpender_status);
-	json_object_set_boolean(root_object, BIT_BLE, latest_bittest.ble_status);
-	json_object_set_boolean(root_object, BIT_BATTERY, latest_bittest.battery_status);
-	json_object_set_boolean(root_object, BIT_RTCFUNCTIONAL, latest_bittest.rtc_functional_status);
-	json_object_set_boolean(root_object, BIT_FWCRC, latest_bittest.fw_crc_status);
-	json_object_set_boolean(root_object, BIT_APKCRC, latest_bittest.apk_crc_status);
-	json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp);
-	update_string = json_serialize_to_string_pretty(root_value);
+	if ((root_value = json_value_init_object()) == NULL)
+		ND_printlog(ND_LOG_INFO, "error, failed initilizing json object\n");
+
+	if ((root_object = json_value_get_object(root_value)) == NULL)
+		ND_printlog(ND_LOG_INFO, "error, failed getting json root object\n");
+
+	if ((json_object_set_boolean(root_object, BIT_I2C_PMIC, latest_bittest.i2c_pmic_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_FUELGAUGE, latest_bittest.i2c_fuelgauge_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_MAX77818TOP, latest_bittest.i2c_max77818top_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_MAX77818CHARGER, latest_bittest.i2c_max77818charger_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_DISPLAYTOUCHPANEL, latest_bittest.i2c_displaytouchpanel_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_MAX77816DC3, latest_bittest.i2c_max77816dc3_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_RTC, latest_bittest.i2c_rtc_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_RTCMEMBLOCK0, latest_bittest.i2c_rtcmemblock0_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_RTCMEMBLOCK1, latest_bittest.i2c_rtcmemblock1_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_CRADLETEMPSENSOR, latest_bittest.i2c_cradletempsensor_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_I2C_IOEXPENDER, latest_bittest.i2c_ioexpender_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_BLE, latest_bittest.ble_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_BATTERY, latest_bittest.battery_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_RTCFUNCTIONAL, latest_bittest.rtc_functional_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_FWCRC, latest_bittest.fw_crc_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_APKCRC, latest_bittest.apk_crc_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((update_string = json_serialize_to_string_pretty(root_value)) == NULL)
+		ND_printlog(ND_LOG_ERROR, "error, JSON serilize to string failed\n");
 	ND_printlog(ND_LOG_INFO, "bit test: %s\n", update_string);
 	json_value_free(root_value);
 	return update_string;
@@ -359,6 +384,7 @@ int bittest_init_full()
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
 	int num_val = 0;
+	char *filebuffer, *filebufferl;
 
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
@@ -376,27 +402,27 @@ int bittest_init_full()
 		latest_bittest.ble_status = PASSED;
 	else
 		latest_bittest.ble_status = FAILED;
-	char *filebuffer = malloc(SHORT_BUFFER_LEN * sizeof(char));
+	if ((filebuffer = malloc(SHORT_BUFFER_LEN * sizeof(char))) == NULL)
+		return -1;
 	if (read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))
-		return -1;
+		goto bittest_init_full_free_filebuffer;
 	if (str2int(&num_val, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) != STR2INT_SUCCESS)
-		return -1;
+		goto bittest_init_full_free_filebuffer;
 	if (num_val > 0)
 		latest_bittest.battery_status = PASSED;
 	else
 		latest_bittest.battery_status = FAILED;
-	free(filebuffer);
-	char *filebufferl = malloc(20 * sizeof(char));
+	if ((filebufferl = malloc(20 * sizeof(char))) == NULL)
+		goto bittest_init_full_free_filebuffer;
 	if (read_file_data(rtc_time_read, filebufferl, 20))
-		return -1;
+		goto bittest_init_full_free_filebufferl;
 	if ((num_val = str2int(&rtc_time_value, filebufferl, MAX_ALLOWED_TRAILING_SPACES, RTC_DATA_LEN)) != STR2INT_SUCCESS)
-		return -1;
+		goto bittest_init_full_free_filebufferl;
 	//sleep(2);
 	//if (atol(read_file_data(rtc_time_read, filebufferl, 20)) - rtc_time_value > 1)
 	latest_bittest.rtc_functional_status = PASSED;
 	//else
 	//	latest_bittest.rtc_functional_status = FAILED;
-	free(filebufferl);
 	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
 		latest_bittest.fw_crc_status = PASSED;
 	else
@@ -408,12 +434,21 @@ int bittest_init_full()
 	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0)
 	{
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
-		return -1;
+		goto bittest_init_full_free_filebufferl;
 	}
 	if (return_current_bit_status(return_reply) == NULL)
-		return -1;
+		goto bittest_init_full_free_filebufferl;
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
+	free(filebuffer);
+	free(filebufferl);
 	return 0;
+
+bittest_init_full_free_filebufferl: free(filebufferl);
+
+bittest_init_full_free_filebuffer: free(filebuffer);
+
+return -1;
+
 }
 
 
@@ -430,10 +465,8 @@ int main(void)
 	}
 	bittest_init_full();
 	//Create socket
-	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
-	if (socket_desc == -1) {
+	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		ND_printlog(ND_LOG_ERROR, "error, Could not create socket\n");
-	}
 	//Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;
@@ -445,20 +478,23 @@ int main(void)
 		return 1;
 	}
 	socket_desc_main = socket_desc;
-	puts("bind done");
+	ND_printlog(ND_LOG_INFO, "bind done\n");
 	if (signal(SIGINT, sig_handler) == SIG_ERR)
 		ND_printlog(ND_LOG_ERROR, "error, can't catch SIGINT\n");
 	//Listen
-	listen(socket_desc , 3);
-
+	if (listen(socket_desc , 3) == -1)
+		ND_printlog(ND_LOG_ERROR, "error, can't listen to port\n");
 	//Accept and incoming connection
 	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
 	while ((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))) {
+		if (new_socket == -1)
+			ND_printlog(ND_LOG_ERROR, "error, can't accept socket connection\n");
 		ND_printlog(ND_LOG_INFO, "server Connection accepted\n");
 		//Reply to the client
 		pthread_t sniffer_thread;
-		new_sock = malloc(sizeof(int));
+		if ((new_sock = malloc(sizeof(int))) == NULL)
+			ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer");
 		*new_sock = new_socket;
 		if (pthread_create(&sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
@@ -466,6 +502,7 @@ int main(void)
 		}
 		//Now join the thread , so that we dont terminate before the thread
 		pthread_join(sniffer_thread , NULL);
+		free(new_sock);
 		ND_printlog(ND_LOG_INFO, "server Handler assigned\n");
 	}
 
@@ -765,7 +802,7 @@ void *connection_handler(void *socket_desc)
 	}
 
 	if (read_size == 0) {
-		puts("server Client disconnected");
+		ND_printlog(ND_LOG_INFO, "server Client disconnected");
 		if (fflush(stdout) == EOF)
 			ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 	} else if (read_size == -1) {
