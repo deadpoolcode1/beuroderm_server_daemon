@@ -57,35 +57,6 @@ static int handler(void* user, const char* section, const char* name,
 	return 0;  /* unknown section/name, error */
 }
 
-/*
-function return index of occurance pattern in string
-*/
-int findSubstr(char *inpText, char *pattern)
-{
-	int inplen = strlen(inpText);
-	char *remTxt = NULL, *remPat = NULL;
-	while (inpText != NULL) {
-
-		remTxt = inpText;
-		char *remPat = pattern;
-
-		if (strlen(remTxt) < strlen(remPat)) {
-			return -1;
-		}
-		while (*remTxt++ == *remPat++) {
-			if (*remPat == '\0') {
-				return inplen - strlen(inpText + 1);
-			}
-			if (remTxt == NULL) {
-				return -1;
-			}
-		}
-		remPat = pattern;
-		inpText++;
-	}
-	return 0;
-}
-
 void delay(unsigned int mseconds)
 {
 	clock_t goal = mseconds + clock();
@@ -108,7 +79,7 @@ void sig_handler(int signo)
 {
 	if (signo == SIGINT)
 		ND_printlog(ND_LOG_INFO, "received SIGINT\n");
-	close(socket_desc_main);
+	safe_close(socket_desc_main);
 	exit(1);
 }
 
@@ -157,8 +128,6 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 		goto read_config_file_data_error;
 	while (getline(&line, &line_size, fptr) != -1) {
 		if (strlen(line) > MIN_CONFIG_LINE_LEN) {
-			ND_printlog(ND_LOG_ERROR, "strlen(buffer) %d\n", strlen(buffer));
-			ND_printlog(ND_LOG_ERROR, "buffer_size %d\n", buffer_size);
 			ND_printlog(ND_LOG_ERROR, "line %s\n", line);
 			if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size - strlen(buffer), "%s", line), buffer_size))
 				goto read_config_file_data_error;
@@ -507,6 +476,7 @@ int main(void)
 
 	return 0;
 }
+
 /*
  * This will handle connection for each client
  * */
@@ -514,6 +484,7 @@ void *connection_handler(void *socket_desc)
 {
 	//Get the socket descriptor
 	int sock = *(int*)socket_desc, read_size = 0, fd = 0;
+	char *ptr;
 	char client_message[SOCKET_MESSAGE_MAX_LENGTH] = {0};
 	char returnMsg[SOCKET_MESSAGE_MAX_LENGTH] = {0};
 	char error_msg[STD_FILE_LENGTH];
@@ -534,17 +505,20 @@ void *connection_handler(void *socket_desc)
 		//Send the message back to client
 		ND_printlog(ND_LOG_INFO, "message:%s\n", client_message);
 		//now make action according to messaage
-		if (findSubstr(client_message, "write_file") > -1) {
+		if ((ptr = strstr(client_message, "write_file")) != NULL) {
 			if (fflush(stdin) == EOF)
 				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing to a file
 			example: write_file:/sys/class/gpio/export=5
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", client_message + findSubstr(client_message, ":")), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
+			if ((ptr = strstr(commandFile.name, "=")) == NULL)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			*ptr  =  '\0';
+		//	commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
 			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
-			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", client_message + findSubstr(client_message, "=")), sizeof(commandFile.value) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=")+1), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
 			fd = open_file(commandFile.name, O_RDWR, EMPTY_MODE);
@@ -562,11 +536,11 @@ void *connection_handler(void *socket_desc)
 				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			}
-		} else if (findSubstr(client_message, "read_file") > -1) {
+		} else if ((ptr = strstr(client_message, "read_file")) != NULL) {
 			/*action is reading a file
 			example: read_file:/sys/class/gpio/gpio5/value
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", client_message + findSubstr(client_message, ":")), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s",  strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "file to read:%s\n", commandFile.name);
 			if ((fd = open_file(commandFile.name, O_RDONLY, EMPTY_MODE)) < 0) {
@@ -587,28 +561,25 @@ void *connection_handler(void *socket_desc)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				commandFile.value[0] = '\0';
 			}
-		} else if (findSubstr(client_message, "write_bit:bittest") > -1) {
+		} else if ((ptr = strstr(client_message, "write_bit:bittest")) != NULL) {
 			/*action is bittest_init
 			*/
-			if (check_snprintf(snprintf(type, sizeof(type) / sizeof(char), "%s", client_message + findSubstr(client_message, ":")), sizeof(type) / sizeof(char)))
+			if (check_snprintf(snprintf(type, sizeof(type) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(type) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "bittest init type:%s\n", type);
-			//if(findSubstr(client_message, "full")>-1)
-			{
-				bittest_init_full();
-				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
-					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				if (write(sock , returnMsg , strlen(returnMsg)) == -1)
-					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			}
-		} else if (findSubstr(client_message, "read_bit:bittest") > -1) {
+			bittest_init_full();
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+		} else if ((ptr = strstr(client_message, "read_bit:bittest")) != NULL) {
 			/*action is bittest_read
 			*/
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "read_time") > -1) {
+		} else if ((ptr = strstr(client_message, "read_time")) != NULL) {
 			/*action is reading current time
 			example: ./send.o 10.0.0.36 read_time
 			*/
@@ -617,14 +588,14 @@ void *connection_handler(void *socket_desc)
 			strftime(returnMsg, REPLY_STRING_LENGTH, "%c" , p);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "write_time") > -1) {
+		} else if ((ptr = strstr(client_message, "write_time")) != NULL) {
 			pid_t my_pid, parent_pid, child_pid;
 			if (fflush(stdin) == EOF)
 				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing time
 			example: ./send.o 10.0.0.36 write_time:060911052016.00
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", client_message + findSubstr(client_message, ":")), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "time:%s\n", commandFile.name);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK) , sizeof(returnMsg) / sizeof(char)))
@@ -645,14 +616,14 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, "error, execl() failure!\n");
 			};
 
-		} else if (findSubstr(client_message, "write_sleep_time") > -1) {
+		} else if ((ptr = strstr(client_message, "write_sleep_time")) != NULL) {
 			pid_t my_pid, parent_pid, child_pid;
 			if (fflush(stdin) == EOF)
 				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing sleep time
 			example: ./send.o 10.0.0.36 write_sleep_time:30000
 			*/
-			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", client_message + findSubstr(client_message, ":")), sizeof(commandFile.name) / sizeof(char)))
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":")+1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "sleep time:%s\n", commandFile.name);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK) , sizeof(returnMsg) / sizeof(char)))
@@ -675,7 +646,7 @@ void *connection_handler(void *socket_desc)
 
 		}
 
-		else if (findSubstr(client_message, "read_command:info") > -1) {
+		else if ((ptr = strstr(client_message, "read_command:info")) != NULL) {
 			// Response: {"build_date": "millis","fw_version": "string_version","device_name": "string_name"}
 			read_file_data_no_space("/data/ro_bootimage_build_date_utc", read1, size_of_array_read_file);
 			read_file_data_no_space("/data/fs_bsp_version", read2, size_of_array_read_file);
@@ -688,7 +659,7 @@ void *connection_handler(void *socket_desc)
 		}
 
 
-		else if (findSubstr(client_message, "read_command:temp_zones") > -1) {
+		else if ((ptr = strstr(client_message, "read_command:temp_zones")) != NULL) {
 			//Response: {"temp_cpu": "temp","temp_wc": "temp"}
 			read_file_data_no_space("/sys/class/thermal/thermal_zone1/temp", read1, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/hwmon/hwmon1/temp1_input", read2, size_of_array_read_file);
@@ -696,7 +667,7 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "read_command:hw_info") > -1) {
+		} else if ((ptr = strstr(client_message, "read_command:hw_info")) != NULL) {
 			//Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
 			read_file_data_no_space("/sys/class/switch/hall_detect/state", read1, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/power_supply/max77818-charger/online", read2, size_of_array_read_file);
@@ -707,7 +678,7 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "read_command:config") > -1) {
+		} else if ((ptr = strstr(client_message, "read_command:config")) != NULL) {
 			if ((read_config_file_data("/data/config.file", client_message, SOCKET_MESSAGE_MAX_LENGTH)))
 			{
 				if (write(sock , error_message_read_file , strlen(error_message_read_file)) == -1)
@@ -718,12 +689,12 @@ void *connection_handler(void *socket_desc)
 				if (write(sock , client_message , strlen(client_message)) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			}
-		} else if (findSubstr(client_message, "read_command:api_version") > -1) {
+		} else if ((ptr = strstr(client_message, "read_command:api_version")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", API_VERSION), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "read_command:device_year") > -1) {
+		} else if ((ptr = strstr(client_message, "read_command:device_year")) != NULL) {
 			if (ini_parse("/data/config.file", handler, &config) < 0) {
 				ND_printlog(ND_LOG_ERROR, "error, Can not load 'test.ini'\n");
 				goto free_socket;
@@ -733,9 +704,9 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "write_command:alarms") > -1) { //this is a temp fix for passing alarm status untill unify with interrupt script
+		} else if ((ptr = strstr(client_message, "write_command:alarms")) != NULL) { //this is a temp fix for passing alarm status untill unify with interrupt script
 			char alarm_status [7];
-			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", client_message + findSubstr(client_message, "write_command:alarms") + strlen("write_command:alarms") - 1), sizeof(alarm_status) / sizeof(char)))
+			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", ptr + strlen("write_command:alarms") ), sizeof(alarm_status) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			alarms.cpu_high_temperature_alarm = (uint8_t)(alarm_status[0] - '0');
 			alarms.cpu_critical_temperature_alarm = (uint8_t)(alarm_status[1] - '0');
@@ -747,7 +718,7 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "read_command:alarms") > -1) {
+		} else if ((ptr = strstr(client_message, "read_command:alarms")) != NULL) {
 			JSON_Value *root_value = json_value_init_object();
 			JSON_Object *root_object = json_value_get_object(root_value);
 			char *serialized_string = NULL;
@@ -764,7 +735,7 @@ void *connection_handler(void *socket_desc)
 			json_value_free(root_value);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "read_command:last_reboot_reason") > -1) {
+		} else if ((ptr = strstr(client_message, "read_command:last_reboot_reason")) != NULL) {
 			fd = open_file(LAST_REBOOT_FILE_PATH, O_RDONLY, EMPTY_MODE);
 			if (fd < 0) {
 				if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", REPLY_NACK), sizeof(commandFile.value) / sizeof(char)))
@@ -776,7 +747,7 @@ void *connection_handler(void *socket_desc)
 			}
 			if (send(sock , commandFile.value , strlen(commandFile.value), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if (findSubstr(client_message, "write_command:last_reboot_reason_done") > -1) {
+		} else if ((ptr = strstr(client_message, "write_command:last_reboot_reason_done")) != NULL) {
 			fd = open_file(LAST_REBOOT_FILE_PATH, O_RDWR, EMPTY_MODE);
 			if (fd < 0) {
 				if (send(sock , REPLY_NACK , strlen(REPLY_NACK), 0) == -1)
