@@ -44,11 +44,12 @@ struct bittest_info {
 	uint8_t apk_crc_status;
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
+	uint8_t timer_flag;
 };
 
 alarms_struct alarms;
 
-struct bittest_info latest_bittest;
+struct bittest_info latest_bittest = {FAILED, FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED, 0, {0}, 0};
 char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 
@@ -68,7 +69,7 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 			goto handler_timer_failed;
 		if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
 			goto handler_timer_failed;
-		if (time_now  > latest_bittest.store_rtc_time_data)
+		if (time_now  > latest_bittest.store_rtc_time_data )
 			latest_bittest.rtc_functional_status = PASSED;
 		else
 			latest_bittest.rtc_functional_status = FAILED;
@@ -498,7 +499,6 @@ int main(void)
 	int socket_desc = 0, new_socket = 0, c = 0 , *new_sock = NULL;
 	struct sockaddr_in server , client;
 
-
 	server_daemon_kmsg_print("--- server daemon STARTED ---");
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
 		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
@@ -521,14 +521,14 @@ int main(void)
 	socket_desc_main = socket_desc;
 	ND_printlog(ND_LOG_INFO, "bind done\n");
 	//Listen
-	if (listen(socket_desc , 3) == -1)
+	if (listen(socket_desc , SOMAXCONN) == -1)
 		ND_printlog(ND_LOG_ERROR, "error, can't listen to port\n");
 	//Accept and incoming connection
 	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
 	while ((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))) {
 		if (new_socket == -1)
-			ND_printlog(ND_LOG_ERROR, "error, can't accept socket connection\n");
+			latest_bittest.timer_flag=1;
 		ND_printlog(ND_LOG_INFO, "server Connection accepted\n");
 		//Reply to the client
 		pthread_t sniffer_thread;
@@ -837,12 +837,14 @@ void *connection_handler(void *socket_desc)
 		ND_printlog(ND_LOG_INFO, "server Client disconnected");
 		if (fflush(stdout) == EOF)
 			ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
-	} else if (read_size == -1) {
+	} else if (read_size == -1 && latest_bittest.timer_flag != 1) {
 		ND_printlog(ND_LOG_ERROR, "error, server recv failed");
 	}
 	//Free the socket pointer
 free_socket:
 	free(socket_desc);
-	safe_close(sock);
+	if (latest_bittest.timer_flag != 1)
+		safe_close(sock);
+	latest_bittest.timer_flag = 0;
 	return 0;
 }
