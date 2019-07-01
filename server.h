@@ -31,7 +31,7 @@
 
 #define i2c0_path "/dev/i2c-0"
 #define i2c2_path "/dev/i2c-2"
-#define rtc_time_read "/sys/class/i2c-dev/i2c-2/device/2-0068/rtc/rtc0/since_epoch"
+#define rtc_time_read "/sys/class/rtc/rtc0/since_epoch"
 #define battery_exists_path "/sys/class/power_supply/battery/present"
 //i2c0_path
 #define i2c_pmic_status_address 0x36

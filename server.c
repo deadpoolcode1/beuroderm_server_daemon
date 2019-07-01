@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <cutils/klog.h>
 #include <ND_LogLibrary.h>
 #include "inih/ini.h"
@@ -21,6 +22,7 @@
 #include "server_log.h"
 #include "common.h"
 
+timer_t timer_id_rtc_functional;
 
 
 struct bittest_info {
@@ -40,11 +42,79 @@ struct bittest_info {
 	uint8_t rtc_functional_status;
 	uint8_t fw_crc_status;
 	uint8_t apk_crc_status;
+	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
 };
 
 alarms_struct alarms;
 
+struct bittest_info latest_bittest;
+char * return_current_bit_status(char *update_string);
+int read_file_data(char *filename, char *buffer, size_t buffer_size);
+
+
+static void handler_timer(int sig, siginfo_t *si, void *uc)
+{
+	timer_t *tidp = NULL;
+	int time_now  = 0;
+	char return_reply[REPLY_STRING_LENGTH] = {0};
+	char rtc_raw_value[RTC_DATA_LEN] = {0};
+	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
+	ND_printlog(ND_LOG_INFO, "Caught signal value %d\n", sig);
+	tidp = si->si_value.sival_ptr;
+	if (*tidp == timer_id_rtc_functional) {
+		ND_printlog(ND_LOG_INFO, "testing if RTC time has progressed\n");
+		if (read_file_data(rtc_time_read, rtc_raw_value, sizeof(rtc_raw_value) / sizeof(char)))
+			goto handler_timer_failed;
+		if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
+			goto handler_timer_failed;
+		if (time_now  > latest_bittest.store_rtc_time_data)
+			latest_bittest.rtc_functional_status = PASSED;
+		else
+			latest_bittest.rtc_functional_status = FAILED;
+	}
+	if ((return_current_bit_status(return_reply)) == NULL)
+		ND_printlog(ND_LOG_ERROR, "error, bit test failed to perform\n");
+	return;
+handler_timer_failed:
+	latest_bittest.rtc_functional_status = FAILED;
+}
+
+
+int make_timer(char *name, timer_t *timerID, int expire_seconds, int interval_seconds)
+{
+	struct sigevent         te;
+	struct itimerspec       its;
+	struct sigaction        sa;
+	int                     sigNo = SIGRTMIN;
+
+	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
+	/* Set up signal handler. */
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = handler_timer;
+	if (sigemptyset(&sa.sa_mask))
+		goto make_timer_error;
+	if (sigaction(sigNo, &sa, NULL))
+		goto make_timer_error;
+	/* Set and enable alarm */
+	te.sigev_notify = SIGEV_SIGNAL;
+	te.sigev_signo = sigNo;
+	te.sigev_value.sival_ptr = timerID;
+	if (timer_create(CLOCK_REALTIME, &te, timerID))
+		goto make_timer_error;
+	its.it_interval.tv_sec = interval_seconds;
+	its.it_interval.tv_nsec = 0;
+	its.it_value.tv_sec = expire_seconds;
+	its.it_value.tv_nsec = 0;
+	if (timer_settime(*timerID, 0, &its, NULL))
+		goto make_timer_error;
+	ND_printlog(ND_LOG_INFO, "setup signal handler, action will be performed in %d seconds", expire_seconds);
+	return 0;
+
+make_timer_error:
+	ND_printlog(ND_LOG_ERROR, "%s: Failed to create timer for %s.\n", __func__, name);
+	return -1;
+}
 
 static int handler(void* user, const char* section, const char* name,
 		   const char* value)
@@ -64,24 +134,11 @@ void delay(unsigned int mseconds)
 		;
 }
 
-struct bittest_info latest_bittest;
 
 //handles a new connection
 void *connection_handler(void *);
 
 int socket_desc_main = 0;
-
-/*
-function to handle ctrl+c response
-ensure closing the socket before exiting software
-*/
-void sig_handler(int signo)
-{
-	if (signo == SIGINT)
-		ND_printlog(ND_LOG_INFO, "received SIGINT\n");
-	safe_close(socket_desc_main);
-	exit(1);
-}
 
 char * trim(char * s)
 {
@@ -378,11 +435,11 @@ char * return_current_bit_status(char *update_string)
 int bittest_init_full()
 {
 	char return_reply[REPLY_STRING_LENGTH] = {0};
-	int32_t rtc_time_value = 0;
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
-	int num_val = 0;
-	char *filebuffer, *filebufferl;
+	char filebuffer[SHORT_BUFFER_LEN] = {0};
+	char filebufferl[RTC_DATA_LEN] = {0};
+	int battery_value = 0;
 
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
@@ -400,27 +457,24 @@ int bittest_init_full()
 		latest_bittest.ble_status = PASSED;
 	else
 		latest_bittest.ble_status = FAILED;
-	if ((filebuffer = malloc(SHORT_BUFFER_LEN * sizeof(char))) == NULL)
-		return -1;
 	if (read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))
-		goto bittest_init_full_free_filebuffer;
-	if (str2int(&num_val, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) != STR2INT_SUCCESS)
-		goto bittest_init_full_free_filebuffer;
-	if (num_val > 0)
+		return -1;
+	if (str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) != STR2INT_SUCCESS)
+		return -1;
+	if (battery_value > 0)
 		latest_bittest.battery_status = PASSED;
 	else
 		latest_bittest.battery_status = FAILED;
-	if ((filebufferl = malloc(20 * sizeof(char))) == NULL)
-		goto bittest_init_full_free_filebuffer;
-	if (read_file_data(rtc_time_read, filebufferl, 20))
-		goto bittest_init_full_free_filebufferl;
-	if ((num_val = str2int(&rtc_time_value, filebufferl, MAX_ALLOWED_TRAILING_SPACES, RTC_DATA_LEN)) != STR2INT_SUCCESS)
-		goto bittest_init_full_free_filebufferl;
-	//sleep(2);
-	//if (atol(read_file_data(rtc_time_read, filebufferl, 20)) - rtc_time_value > 1)
-	latest_bittest.rtc_functional_status = PASSED;
-	//else
-	//	latest_bittest.rtc_functional_status = FAILED;
+	if (read_file_data(rtc_time_read, filebufferl, sizeof(filebufferl) / sizeof(char)))
+		return -1;
+	if (str2int(&latest_bittest.store_rtc_time_data, filebufferl, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebufferl) / sizeof(char)) != STR2INT_SUCCESS)
+		return -1;
+	if (timer_id_rtc_functional != NULL) {
+		if (timer_delete(timer_id_rtc_functional))
+			return -1;
+	}
+	if (make_timer("RTC Functional Timer", &timer_id_rtc_functional, 2, 0))
+		return -1;
 	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
 		latest_bittest.fw_crc_status = PASSED;
 	else
@@ -431,23 +485,10 @@ int bittest_init_full()
 		latest_bittest.apk_crc_status = FAILED;
 	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0) {
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
-		goto bittest_init_full_free_filebufferl;
+		return -1;
 	}
-	if (return_current_bit_status(return_reply) == NULL)
-		goto bittest_init_full_free_filebufferl;
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
-	free(filebuffer);
-	free(filebufferl);
 	return 0;
-
-bittest_init_full_free_filebufferl:
-	free(filebufferl);
-
-bittest_init_full_free_filebuffer:
-	free(filebuffer);
-
-	return -1;
-
 }
 
 
@@ -462,7 +503,8 @@ int main(void)
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
 		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
 	}
-	bittest_init_full();
+	if (bittest_init_full())
+		ND_printlog(ND_LOG_ERROR, "error, could not perform BIT test\n");
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		ND_printlog(ND_LOG_ERROR, "error, Could not create socket\n");
@@ -478,8 +520,6 @@ int main(void)
 	}
 	socket_desc_main = socket_desc;
 	ND_printlog(ND_LOG_INFO, "bind done\n");
-	if (signal(SIGINT, sig_handler) == SIG_ERR)
-		ND_printlog(ND_LOG_ERROR, "error, can't catch SIGINT\n");
 	//Listen
 	if (listen(socket_desc , 3) == -1)
 		ND_printlog(ND_LOG_ERROR, "error, can't listen to port\n");
