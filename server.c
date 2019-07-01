@@ -582,8 +582,6 @@ void *connection_handler(void *socket_desc)
 		ND_printlog(ND_LOG_INFO, "message:%s\n", client_message);
 		//now make action according to messaage
 		if ((ptr = strstr(client_message, "write_file")) != NULL) {
-			if (fflush(stdin) == EOF)
-				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing to a file
 			example: write_file:/sys/class/gpio/export=5
 			*/
@@ -644,9 +642,7 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "bittest init type:%s\n", type);
 			bittest_init_full();
-			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
-				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
+			if (write(sock , REPLY_ACK , strlen(REPLY_ACK)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "read_bit:bittest")) != NULL) {
 			/*action is bittest_read
