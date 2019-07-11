@@ -431,7 +431,6 @@ char * return_current_bit_status(char *update_string)
 	return update_string;
 }
 
-
 //fucnction that runs bittest full test
 int bittest_init_full()
 {
