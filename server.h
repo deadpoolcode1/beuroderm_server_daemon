@@ -58,7 +58,7 @@
 #define i2c_ioexpender_status_address 0x20
 #define i2c_ioexpender_status_register 0x00
 //last reboot reason file path
-#define LAST_REBOOT_FILE_PATH "/data/last_reset_reason_persistent"
+#define LAST_REBOOT_FILE_PATH "/data/last_reset_reason"
 //array sizes
 #define STD_FILE_LENGTH 100
 #define REPLY_STRING_LENGTH 1000
