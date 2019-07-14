@@ -36,19 +36,23 @@ int check_snprintf(int ret_value, int max_length)
 int str2int(int *out, char *s, int max_spaces, int size_of_string)
 {
 	char *end;
-	int i = 0, j = 0;
-	char convert_string [size_of_string];
-
-	if (check_snprintf(snprintf(convert_string, sizeof(convert_string) / sizeof(char), "%s", s), sizeof(convert_string) / sizeof(char)) != 0) {
-		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_INCONVERTIBLE");
-		return STR2INT_INCONVERTIBLE;
+	int i = 0, j = 0, ret = 0;
+	char *convert_string;
+	convert_string = (char *) malloc(size_of_string);
+	if (convert_string == NULL) {
+		ret = STR2INT_FAILED;
+		goto exit_str2int;
+	}
+	if (check_snprintf(snprintf(convert_string, size_of_string, "%s", s), size_of_string) != 0) {
+		ret = STR2INT_INCONVERTIBLE;
+		goto exit_str2int;
 	}
 	//remove trailing spaces
 	while (isspace(convert_string[i]) && (i < max_spaces) && (i < size_of_string - 1))
 		i++;
 	if (!(isdigit(convert_string[i]))) {
-		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_INCONVERTIBLE");
-		return STR2INT_INCONVERTIBLE;
+		ret = STR2INT_INCONVERTIBLE;
+		goto exit_str2int;
 	}
 	errno = 0;
 	//allow charecters which are not numeric after the number
@@ -62,19 +66,22 @@ int str2int(int *out, char *s, int max_spaces, int size_of_string)
 	long l = strtol(convert_string + i, &end, 10);
 	/* Both checks are needed because INT_MAX == LONG_MAX is possible. */
 	if (l > INT_MAX || (errno == ERANGE && l == LONG_MAX)) {
-		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_OVERFLOW");
-		return STR2INT_OVERFLOW;
+		ret =  STR2INT_OVERFLOW;
+		goto exit_str2int;
 	}
 	if (l < INT_MIN || (errno == ERANGE && l == LONG_MIN)) {
-		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_UNDERFLOW");
-		return STR2INT_UNDERFLOW;
+		ret = STR2INT_UNDERFLOW;
+		goto exit_str2int;
 	}
 	if (*end != '\0') {
-		ND_printlog(ND_LOG_ERROR, "Error, STR2INT_UNDERFLOW");
-		return STR2INT_INCONVERTIBLE;
+		ret = STR2INT_INCONVERTIBLE;
+		goto exit_str2int;
 	}
 	*out = l;
-	return STR2INT_SUCCESS;
+	ret = STR2INT_SUCCESS;
+exit_str2int:
+	free(convert_string);
+	return ret;
 }
 
 void chop_string(char *str, size_t n)

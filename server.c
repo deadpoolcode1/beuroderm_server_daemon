@@ -49,7 +49,7 @@ struct bittest_info {
 
 alarms_struct alarms;
 
-struct bittest_info latest_bittest = {FAILED, FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED,FAILED, 0, {0}, 0};
+struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, 0, {0}, 0};
 char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 
@@ -69,7 +69,7 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 			goto handler_timer_failed;
 		if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
 			goto handler_timer_failed;
-		if (time_now  > latest_bittest.store_rtc_time_data )
+		if (time_now  > latest_bittest.store_rtc_time_data)
 			latest_bittest.rtc_functional_status = PASSED;
 		else
 			latest_bittest.rtc_functional_status = FAILED;
@@ -527,7 +527,7 @@ int main(void)
 	c = sizeof(struct sockaddr_in);
 	while ((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))) {
 		if (new_socket == -1)
-			latest_bittest.timer_flag=1;
+			latest_bittest.timer_flag = 1;
 		ND_printlog(ND_LOG_INFO, "server Connection accepted\n");
 		//Reply to the client
 		pthread_t sniffer_thread;
