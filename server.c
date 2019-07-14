@@ -65,7 +65,7 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 	tidp = si->si_value.sival_ptr;
 	if (*tidp == timer_id_rtc_functional) {
 		ND_printlog(ND_LOG_INFO, "testing if RTC time has progressed\n");
-		if (read_file_data(rtc_time_read, rtc_raw_value, sizeof(rtc_raw_value) / sizeof(char)))
+		if (read_file_data(rtc_time_path, rtc_raw_value, sizeof(rtc_raw_value) / sizeof(char)))
 			goto handler_timer_failed;
 		if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
 			goto handler_timer_failed;
@@ -431,17 +431,47 @@ char * return_current_bit_status(char *update_string)
 	return update_string;
 }
 
-//fucnction that runs bittest full test
-int bittest_init_full()
-{
-	char return_reply[REPLY_STRING_LENGTH] = {0};
-	time_t t = time(NULL);
-	struct tm * p = localtime(&t);
-	char filebuffer[SHORT_BUFFER_LEN] = {0};
-	char filebufferl[RTC_DATA_LEN] = {0};
-	int battery_value = 0;
 
-	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
+void init_latest_bit_results()
+{
+	latest_bittest.apk_crc_status = FAILED;
+	latest_bittest.battery_status = FAILED;
+	latest_bittest.ble_status = FAILED;
+	latest_bittest.fw_crc_status = FAILED;
+	latest_bittest.i2c_cradletempsensor_status = FAILED;
+	latest_bittest.i2c_displaytouchpanel_status = FAILED;
+	latest_bittest.i2c_fuelgauge_status = FAILED;
+	latest_bittest.i2c_ioexpender_status = FAILED;
+	latest_bittest.i2c_max77816dc3_status = FAILED;
+	latest_bittest.i2c_max77818charger_status = FAILED;
+	latest_bittest.i2c_max77818top_status = FAILED;
+	latest_bittest.i2c_pmic_status = FAILED;
+	latest_bittest.i2c_rtc_status = FAILED;
+	latest_bittest.i2c_rtcmemblock0_status = FAILED;
+	latest_bittest.i2c_rtcmemblock1_status = FAILED;
+	latest_bittest.rtc_functional_status = FAILED;
+}
+
+/*
+ * helper function to create timer, will be used to test time on RTC is progressing
+ */
+void create_rtc_functional_timer(char *filebufferl, size_t size_filebufferl)
+{
+	if (str2int(&latest_bittest.store_rtc_time_data, filebufferl, MAX_ALLOWED_TRAILING_SPACES, size_filebufferl) != STR2INT_SUCCESS)
+		return;
+	if (timer_id_rtc_functional != NULL) {
+		if (timer_delete(timer_id_rtc_functional)) {
+			ND_printlog(ND_LOG_ERROR, "error, failed deleting timer\n");
+			return;
+		}
+	}
+
+	if (make_timer("RTC Functional Timer", &timer_id_rtc_functional, 2, 0))
+		ND_printlog(ND_LOG_ERROR, "error, failed creating timer\n");
+}
+
+void i2c_communications_tests()
+{
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
 	latest_bittest.i2c_fuelgauge_status = check_i2c_validity(i2c0_path, i2c_fuelgauge_status_address, i2c_fuelgauge_status_register);
 	latest_bittest.i2c_max77818top_status = check_i2c_validity(i2c0_path, i2c_max77818top_status_address, i2c_max77818top_status_register);
@@ -453,42 +483,42 @@ int bittest_init_full()
 	latest_bittest.i2c_rtcmemblock1_status = check_i2c_validity(i2c2_path, i2c_rtcmemblock1_status_address, i2c_rtcmemblock1_status_register);
 	latest_bittest.i2c_cradletempsensor_status = check_i2c_validity(i2c2_path, i2c_cradletempsensor_status_address, i2c_cradletempsensor_status_register);
 	latest_bittest.i2c_ioexpender_status = check_i2c_validity(i2c2_path, i2c_ioexpender_status_address, i2c_ioexpender_status_register);
+}
+
+//fucnction that runs bittest full test
+void bittest_init_full()
+{
+	char return_reply[REPLY_STRING_LENGTH] = {0};
+	time_t t = time(NULL);
+	struct tm * p = localtime(&t);
+	char filebuffer[SHORT_BUFFER_LEN] = {0};
+	char filebufferl[RTC_DATA_LEN] = {0};
+	int battery_value = 0;
+	//initially assume all tests failed
+	init_latest_bit_results();
+	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
+	i2c_communications_tests();
 	if (file_exists("/dev/hci_tty") > -1)
 		latest_bittest.ble_status = PASSED;
-	else
-		latest_bittest.ble_status = FAILED;
-	if (read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))
-		return -1;
-	if (str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) != STR2INT_SUCCESS)
-		return -1;
-	if (battery_value > 0)
-		latest_bittest.battery_status = PASSED;
-	else
-		latest_bittest.battery_status = FAILED;
-	if (read_file_data(rtc_time_read, filebufferl, sizeof(filebufferl) / sizeof(char)))
-		return -1;
-	if (str2int(&latest_bittest.store_rtc_time_data, filebufferl, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebufferl) / sizeof(char)) != STR2INT_SUCCESS)
-		return -1;
-	if (timer_id_rtc_functional != NULL) {
-		if (timer_delete(timer_id_rtc_functional))
-			return -1;
+	if (!(read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))) {
+		if ((str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) == STR2INT_SUCCESS) && (battery_value > 0))
+			latest_bittest.battery_status = PASSED;
 	}
-	if (make_timer("RTC Functional Timer", &timer_id_rtc_functional, 2, 0))
-		return -1;
+
+	if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
+		create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));
+
 	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
 		latest_bittest.fw_crc_status = PASSED;
-	else
-		latest_bittest.fw_crc_status = FAILED;
+
 	if (crc_passed(APK_CONFIG_FILE_PATH, FILE_JSON) == 0)
 		latest_bittest.apk_crc_status = PASSED;
-	else
-		latest_bittest.apk_crc_status = FAILED;
-	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0) {
+
+	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0)
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
-		return -1;
-	}
+
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
-	return 0;
+	return;
 }
 
 
@@ -502,8 +532,7 @@ int main(void)
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
 		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
 	}
-	if (bittest_init_full())
-		ND_printlog(ND_LOG_ERROR, "error, could not perform BIT test\n");
+	bittest_init_full();
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		ND_printlog(ND_LOG_ERROR, "error, Could not create socket\n");
