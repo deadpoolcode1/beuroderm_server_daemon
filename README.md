@@ -20,7 +20,7 @@ in order to run on a PC do the following:
 
 vi Makefile:
 
-#CC=    $(CROSS_COMPILE_ANDROID)gcc
+CC=    $(CROSS_COMPILE_ANDROID)gcc
 
 CC = gcc
 
@@ -36,7 +36,7 @@ vi Makefile:
 
 CC=    $(CROSS_COMPILE_ANDROID)gcc
 
-#CC = gcc
+CC = gcc
 
 save changes
 
@@ -54,9 +54,9 @@ adb shell "su -c '/system/etc/server.o&'"
 
 in case of a Linux device (from pc) - 
 
-scp server.o root@ip_address/path
+scp server.o to path
 
-ssh root@ip_address
+ssh to device
 
 cd path
 

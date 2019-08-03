@@ -1,3 +1,10 @@
+/** @file
+ *
+ * @brief server module.
+ *
+ * service handling requests from APK, used as a binder for APK
+ * communication method is based on socket communication
+ */
 #include <stdio.h>
 #include <string.h>    //strlen
 #include <stdlib.h>    //strlen
@@ -54,6 +61,8 @@ char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 
 
+/** @brief function called when timer expires
+ */
 static void handler_timer(int sig, siginfo_t *si, void *uc)
 {
 	timer_t *tidp = NULL;
@@ -81,7 +90,9 @@ handler_timer_failed:
 	latest_bittest.rtc_functional_status = FAILED;
 }
 
-
+/** @brief creates timer, timer can be set as oneshot or periodic
+ *  whenever timer expires the respective handler is being called  
+ */
 int make_timer(char *name, timer_t *timerID, int expire_seconds, int interval_seconds)
 {
 	struct sigevent         te;
@@ -117,6 +128,8 @@ make_timer_error:
 	return -1;
 }
 
+/** @brief handles reading ini file for start year parameter 
+ */
 static int handler(void* user, const char* section, const char* name,
 		   const char* value)
 {
@@ -128,6 +141,8 @@ static int handler(void* user, const char* section, const char* name,
 	return 0;  /* unknown section/name, error */
 }
 
+/** @brief general delay function
+ */
 void delay(unsigned int mseconds)
 {
 	clock_t goal = mseconds + clock();
@@ -136,11 +151,12 @@ void delay(unsigned int mseconds)
 }
 
 
-//handles a new connection
 void *connection_handler(void *);
 
 int socket_desc_main = 0;
 
+/** @brief remove space charecters from string 
+ */
 char * trim(char * s)
 {
 	int l = strlen(s);
@@ -152,7 +168,8 @@ char * trim(char * s)
 }
 
 
-
+/** @brief read file line by line, return only last line
+ */
 int read_file_data(char *filename, char *buffer, size_t buffer_size)
 {
 	FILE *fptr = NULL;
@@ -175,7 +192,8 @@ read_file_data_error:
 }
 
 
-
+/** @brief read config data to buffer
+ */
 int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 {
 	char *line = NULL;
@@ -204,7 +222,8 @@ read_config_file_data_error:
 	return -1;
 }
 
-
+/** @brief read file data, remove spaces 
+ */
 void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 {
 	char *pos = NULL;
@@ -219,6 +238,8 @@ void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 		* pos = '\0';
 }
 
+/** @brief check if file exists
+ */
 int file_exists(char *filename)
 {
 	int fd = 0;
@@ -230,7 +251,8 @@ int file_exists(char *filename)
 }
 
 
-
+/** @brief perform I2C read 
+ */
 uint8_t read_i2c(char *path, uint8_t m_address, uint8_t m_register)
 {
 	int rc = 0, file = 0;
@@ -250,14 +272,16 @@ failed_reading:
 	return read_data;
 }
 
-//function tests vale in specified address is not 0xff, thus varifying i2c communication
-//return 0 on succesful communication (value not 0xff)
+/** @brief checks if read data from I2C is vald, in Neuroderm implementation, 0XFF is invalid value 
+ */
 uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
 {
 
 	return read_i2c(path, m_address, m_register) == 0xff ? FAILED : PASSED;
 }
 
+/** @brief extract CRC string from full message
+ */
 char* filter_crc_string(char* input, uint8_t file_type, size_t input_length)
 {
 	unsigned int i = 0, j = 0;
@@ -298,6 +322,8 @@ exit_filter_crc_string:
 	return (input);
 }
 
+/** @brief extract CRC string from file
+ */
 long extract_crc_from_file(char *string_containing_crc, uint8_t file_type)
 {
 	char *pfound = NULL, *eptr = NULL;
@@ -325,6 +351,8 @@ extract_crc_from_file_error:
 	return -1;
 }
 
+/** @brief check if CRC passed, read CRC from file and compare to the calculated value
+ */
 int crc_passed(char *filename, uint8_t type)
 {
 	size_t buffer_size = STD_FILE_LENGTH;
@@ -378,7 +406,8 @@ int crc_passed(char *filename, uint8_t type)
 	return (crc_calculated == crc_expected) ? 0 : 1;
 }
 
-
+/** @brief return current BIT status, only read existing status not performing test
+ */
 char * return_current_bit_status(char *update_string)
 {
 	JSON_Value *root_value;
@@ -431,7 +460,8 @@ char * return_current_bit_status(char *update_string)
 	return update_string;
 }
 
-
+/** @brief initilize bittest results
+ */
 void init_latest_bit_results()
 {
 	latest_bittest.apk_crc_status = FAILED;
@@ -452,8 +482,7 @@ void init_latest_bit_results()
 	latest_bittest.rtc_functional_status = FAILED;
 }
 
-/*
- * helper function to create timer, will be used to test time on RTC is progressing
+/** @brief create timer, used for chacking RTC time is progressing
  */
 void create_rtc_functional_timer(char *filebufferl, size_t size_filebufferl)
 {
@@ -470,6 +499,8 @@ void create_rtc_functional_timer(char *filebufferl, size_t size_filebufferl)
 		ND_printlog(ND_LOG_ERROR, "error, failed creating timer\n");
 }
 
+/** @brief testing I2C valid communication to devices
+ */
 void i2c_communications_tests()
 {
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
@@ -485,7 +516,8 @@ void i2c_communications_tests()
 	latest_bittest.i2c_ioexpender_status = check_i2c_validity(i2c2_path, i2c_ioexpender_status_address, i2c_ioexpender_status_register);
 }
 
-//fucnction that runs bittest full test
+/** @brief perform full bittest
+ */
 void bittest_init_full()
 {
 	char return_reply[REPLY_STRING_LENGTH] = {0};
@@ -581,9 +613,10 @@ int main(void)
 	return 0;
 }
 
-/*
- * This will handle connection for each client
- * */
+/** @brief handle socket connection opened.
+ *  parse message recived, perform needed actions 
+ *  and reply accordinglly
+ */
 void *connection_handler(void *socket_desc)
 {
 	//Get the socket descriptor

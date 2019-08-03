@@ -1,7 +1,8 @@
-/*
- * I2C lib
+/** @file
  *
- * Written by Ilan Ganor
+ * @brief i2c module.
+ *
+ * provides the i2c low level access functions
  *
  */
 
@@ -20,6 +21,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "i2c.h"
+
+/** @brief handle IOCTL for i2c bus access.
+ */
 __s32 i2c_smbus_access(int file, char read_write, __u8 command,
 		       int size, union i2c_smbus_data *data)
 {
@@ -32,7 +36,8 @@ __s32 i2c_smbus_access(int file, char read_write, __u8 command,
 	return ioctl(file, I2C_SMBUS, &args);
 }
 
-
+/** @brief read data from i2c address, register.
+ */
 __s32 i2c_smbus_read_byte_data(int file, __u8 command)
 {
 	union i2c_smbus_data data;

@@ -1,9 +1,9 @@
-/*
- * common.c
-
+/** @file
  *
- *  Created on: Mar 29, 2019
- *      Author: Ilan Ganor
+ * @brief common module.
+ *
+ * provides the common functions layer, general purpuse utilities
+ *
  */
 
 #include <stdio.h>
@@ -22,6 +22,8 @@
 #endif
 #include "common.h"
 
+/** @brief checks sprintf return function, prints and logs accordinglly.
+ */
 int check_snprintf(int ret_value, int max_length)
 {
 	if (ret_value < 0)
@@ -33,6 +35,9 @@ int check_snprintf(int ret_value, int max_length)
 	return -1;
 }
 
+/** @brief converts string to integer, performs tests and catchs 
+ *  errors in conversion
+ */
 int str2int(int *out, char *s, int max_spaces, int size_of_string)
 {
 	char *end;
@@ -84,6 +89,8 @@ exit_str2int:
 	return ret;
 }
 
+/** @brief removes number of chars from beginning of string 
+ */
 void chop_string(char *str, size_t n)
 {
 	size_t len = strlen(str);
@@ -93,7 +100,8 @@ void chop_string(char *str, size_t n)
 	memmove(str, str + n, len - n + 1);
 }
 
-
+/** @brief open file, log errors 
+ */
 int open_file(char *filename, int flags, mode_t mode)
 {
 	int fd;
@@ -106,6 +114,8 @@ int open_file(char *filename, int flags, mode_t mode)
 	return fd;
 }
 
+/** @brief close file, document fail closing file
+ */
 int safe_close(int fd)
 {
 	int ret = 0;
@@ -114,6 +124,8 @@ int safe_close(int fd)
 	return ret;
 }
 
+/** @brief close file stream
+ */
 void safe_close_stream(FILE *fd)
 {
 	int err = 0;
@@ -123,6 +135,8 @@ void safe_close_stream(FILE *fd)
 	}
 }
 
+/** @brief write file, lock file used to avoid race conditioning
+ */
 int safe_write_file_stream(char *filename, char *data)
 {
 	FILE *fptr = NULL;
