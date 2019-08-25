@@ -669,6 +669,14 @@ void *connection_handler(void *socket_desc)
 			*ptr  =  '\0';
 			//	commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
 			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
+			//filter wireless charger command in case wc alarm is open
+			if ((strcmp(commandFile.name,"/sys/class/power_supply/max77818-charger/online") == 0) && alarms.wc_high_temperature_alarm == 1)
+			{
+				ND_printlog(ND_LOG_INFO, "disable WC status change, wc alarm status open and FW limits access in this case");
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				goto free_socket;
+			}
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
