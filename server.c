@@ -553,7 +553,23 @@ void bittest_init_full()
 	return;
 }
 
+/** @brief general function used for executing shell commands from ate_daemon
+ */
+int exec_system_command(const char * parameter, const char* process_to_execute)
+{
+	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
+	pid_t my_pid, parent_pid, child_pid;
+	if ((child_pid = fork()) < 0) {
+		ND_printlog(ND_LOG_ERROR, "fork failed");
+		return -1;
+	}
 
+	if (child_pid == 0) {
+		execl("/system/bin/sh", "/system/bin/sh", "-C", process_to_execute, parameter, (char *)NULL);
+		return -1; //return fail if reached here
+	};
+	return 0;
+}
 
 int main(void)
 {
@@ -722,7 +738,6 @@ void *connection_handler(void *socket_desc)
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "write_time")) != NULL) {
-			pid_t my_pid, parent_pid, child_pid;
 			if (fflush(stdin) == EOF)
 				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing time
@@ -735,22 +750,8 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			my_pid = getpid();
-			parent_pid = getppid();
-			/* print error message if fork() fails */
-			if ((child_pid = fork()) < 0) {
-				ND_printlog(ND_LOG_ERROR, "error, fork failure");
-			}
-
-			if (child_pid == 0) {
-				my_pid = getpid();
-				parent_pid = getppid();
-				execl("/system/bin/sh", "/system/bin/sh", "-C", "/system/bin/date_script.sh", commandFile.name, (char *)NULL);
-				ND_printlog(ND_LOG_ERROR, "error, execl() failure!\n");
-			};
-
+			exec_system_command(commandFile.name, "/system/bin/date_script.sh");
 		} else if ((ptr = strstr(client_message, "write_sleep_time")) != NULL) {
-			pid_t my_pid, parent_pid, child_pid;
 			if (fflush(stdin) == EOF)
 				ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 			/*action is writing sleep time
@@ -763,20 +764,7 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			my_pid = getpid();
-			parent_pid = getppid();
-			/* print error message if fork() fails */
-			if ((child_pid = fork()) < 0) {
-				ND_printlog(ND_LOG_ERROR, "error, fork failure\n");
-			}
-
-			if (child_pid == 0) {
-				my_pid = getpid();
-				parent_pid = getppid();
-				execl("/system/bin/sh", "/system/bin/sh", "-C", "/system/bin/sleep_time_script.sh", commandFile.name, (char *)NULL);
-				ND_printlog(ND_LOG_ERROR, "error, execl() failure!\n");
-			};
-
+			exec_system_command(commandFile.name, "/system/bin/sleep_time_script.sh");
 		}
 
 		else if ((ptr = strstr(client_message, "read_command:info")) != NULL) {
@@ -889,7 +877,18 @@ void *connection_handler(void *socket_desc)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				ND_printlog(ND_LOG_INFO, "set watchdog file to 0 since state has been read");
 				safe_close(fd);
-			}
+			}   
+		} else if ((ptr = strstr(client_message, "switch_apk")) != NULL) {
+		    //example: switch_apk=com.neuroderm.ct_app
+			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
+			if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			if (strcmp(commandFile.value, ND_HOME_APK) == 0 )
+				exec_system_command(VAR_OPEN_ND_MAIN_APK, "/system/bin/ate_commands.sh");
+			else if (strcmp(commandFile.value, ND_CTA_APK) == 0 )
+				exec_system_command(VAR_OPEN_ND_CTA_APK, "/system/bin/ate_commands.sh");			
 		}
 		//sleep(1);
 	}

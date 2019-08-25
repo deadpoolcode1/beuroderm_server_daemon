@@ -69,6 +69,12 @@ in order to support unittest a unittest.c + unittest_def.json file exist
 
 per specific hardware the unittest_def.json is modified.
 
+## C.0.2
+
+added support for API to switch between CTA APK and main ND APK
+
+improved code usage for functions using external shell scripts 
+
 ## Sprint 25
 
 * TWIKO-1268

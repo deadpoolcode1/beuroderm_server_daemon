@@ -66,6 +66,13 @@
 #define SHORT_BUFFER_LEN 10
 #define RTC_DATA_LEN 20
 #define FILE_BUFFER_LEN 150
+//APK open commands
+#define  VAR_OPEN_ND_MAIN_APK "14"
+#define  VAR_OPEN_ND_CTA_APK "15"
+//APK NAMES
+#define ND_HOME_APK "com.neuroderm.station"
+#define ND_CTA_APK "com.neuroderm.ct_app"
+
 typedef struct {
 	char* year;
 } configuration;
