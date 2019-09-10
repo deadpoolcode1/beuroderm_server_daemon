@@ -673,9 +673,11 @@ void *connection_handler(void *socket_desc)
 			if ((strcmp(commandFile.name,"/sys/devices/soc0/filling_station-pm/wpc_stby/value") == 0) && alarms.wc_high_temperature_alarm == 1)
 			{
 				ND_printlog(ND_LOG_INFO, "disable WC status change, wc alarm status open and FW limits access in this case");
-				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
-					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				goto free_socket;
+                                if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
+                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+                                if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				goto end_selection;
 			}
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
@@ -900,7 +902,7 @@ void *connection_handler(void *socket_desc)
 		}
 		//sleep(1);
 	}
-
+end_selection:
 	if (read_size == 0) {
 		ND_printlog(ND_LOG_INFO, "server Client disconnected");
 		if (fflush(stdout) == EOF)
