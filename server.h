@@ -23,7 +23,7 @@
 #define SOCKET_MESSAGE_MAX_LENGTH 5000
 #define REPLY_ACK "ACK\n"
 #define REPLY_NACK "NACK\n"
-#define API_VERSION "4"
+#define API_VERSION "5"
 #define MAX_FILE_SIZE 10000
 #define CRC_STRING_JSON "\"crc\":\""
 #define CRC_STRING_INI "crc="
@@ -67,11 +67,18 @@
 #define RTC_DATA_LEN 20
 #define FILE_BUFFER_LEN 150
 //APK open commands
+#define EXITATEMODE "0"
+#define ENTERATEMODE "1"
+#define VAR_COMMAND_EXITATEMODE "9"
+#define VAR_COMMAND_ENTERATEMODE "10"
 #define  VAR_OPEN_ND_MAIN_APK "14"
 #define  VAR_OPEN_ND_CTA_APK "15"
 //APK NAMES
 #define ND_HOME_APK "com.neuroderm.station"
 #define ND_CTA_APK "com.neuroderm.ct_app"
+
+#define YEAR_STRING_LEN 5
+#define MAX_YEAR_ALLOWED 2038
 
 typedef struct {
 	char* year;

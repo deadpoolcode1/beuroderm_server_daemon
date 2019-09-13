@@ -636,7 +636,7 @@ int main(void)
 void *connection_handler(void *socket_desc)
 {
 	//Get the socket descriptor
-	int sock = *(int*)socket_desc, read_size = 0, fd = 0;
+	int sock = *(int*)socket_desc, read_size = 0, fd = 0, date_year = 0;
 	char *ptr;
 	char client_message[SOCKET_MESSAGE_MAX_LENGTH] = {0};
 	char returnMsg[SOCKET_MESSAGE_MAX_LENGTH] = {0};
@@ -753,6 +753,20 @@ void *connection_handler(void *socket_desc)
 			/*action is writing time
 			example: ./send.o 10.0.0.36 write_time:060911052016.00
 			*/
+			if (check_snprintf(snprintf(commandFile.value, YEAR_STRING_LEN, "%s", strstr(client_message, ".") - 4), sizeof(commandFile.value) / sizeof(char)))
+                                ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			if (str2int(&date_year, commandFile.value, YEAR_STRING_LEN, sizeof(commandFile.value) / sizeof(char)) != STR2INT_SUCCESS)
+                        	ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			ND_printlog(ND_LOG_INFO, "year:%d\n", date_year);
+			if (date_year > MAX_YEAR_ALLOWED)    //maximal year allowed on this Android OS 
+			{
+                                ND_printlog(ND_LOG_ERROR, "year set is greater then maximal allowed year on OS");
+                                if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
+                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+                                if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+                                goto end_selection;
+			}
 			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "time:%s\n", commandFile.name);
@@ -899,7 +913,19 @@ void *connection_handler(void *socket_desc)
 				exec_system_command(VAR_OPEN_ND_MAIN_APK, "/system/bin/ate_commands.sh");
 			else if (strcmp(commandFile.value, ND_CTA_APK) == 0 )
 				exec_system_command(VAR_OPEN_ND_CTA_APK, "/system/bin/ate_commands.sh");			
-		}
+		} else if ((ptr = strstr(client_message, "ate_mode")) != NULL) {
+                    //example: ate_mode=1
+                        if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
+                                ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+                        ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
+                        if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
+                                ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+                        if (strcmp(commandFile.value, EXITATEMODE) == 0 )
+                                exec_system_command(VAR_COMMAND_EXITATEMODE, "/system/bin/ate_commands.sh");
+                        else if (strcmp(commandFile.value, ENTERATEMODE) == 0 )
+                                exec_system_command(VAR_COMMAND_ENTERATEMODE, "/system/bin/ate_commands.sh");
+                }
+
 		//sleep(1);
 	}
 end_selection:
