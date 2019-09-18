@@ -30,6 +30,7 @@
 #include "common.h"
 
 timer_t timer_id_rtc_functional;
+timer_t timer_id_suspend_to_ram;
 
 
 struct bittest_info {
@@ -60,13 +61,26 @@ struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FA
 char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 
+static void try_write_file(char *filename, char *value)
+{
+	int fd = 0;
+	fd = open_file(filename, O_RDWR, EMPTY_MODE);
+	if (fd < 0) {
+		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+
+	} else {
+		if (write(fd, value, strlen(value)) == -1)
+			safe_close(fd);
+	}
+
+}
 
 /** @brief function called when timer expires
  */
 static void handler_timer(int sig, siginfo_t *si, void *uc)
 {
 	timer_t *tidp = NULL;
-	int time_now  = 0;
+	int time_now  = 0, fd = 0;
 	char return_reply[REPLY_STRING_LENGTH] = {0};
 	char rtc_raw_value[RTC_DATA_LEN] = {0};
 	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
@@ -82,7 +96,22 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 			latest_bittest.rtc_functional_status = PASSED;
 		else
 			latest_bittest.rtc_functional_status = FAILED;
+	} else if (*tidp == timer_id_suspend_to_ram) {
+		ND_printlog(ND_LOG_INFO, "suspend to RAM\n");
+		try_write_file("/sys/devices/soc0/filling_station-pm/disp_pus_en/value", "0");
+		try_write_file("/sys/devices/soc0/filling_station-pm/disp_stby/value", "0");
+		try_write_file("/sys/devices/soc0/filling_station-pm/lr_h_inv/value", "0");
+		try_write_file("/sys/devices/soc0/filling_station-pm/rst_ctp/value", "0");
+		try_write_file("/data/ledblue", "0");
+		try_write_file("/sys/power/state", "mem");
+		try_write_file("/data/ledblue", "1");
+		try_write_file("/sys/devices/soc0/filling_station-pm/disp_pus_en/value", "1");
+		try_write_file("/sys/devices/soc0/filling_station-pm/disp_stby/value", "1");
+		try_write_file("/sys/devices/soc0/filling_station-pm/lr_h_inv/value", "1");
+		try_write_file("/sys/devices/soc0/filling_station-pm/rst_ctp/value", "1");
+		return;
 	}
+
 	if ((return_current_bit_status(return_reply)) == NULL)
 		ND_printlog(ND_LOG_ERROR, "error, bit test failed to perform\n");
 	return;
@@ -91,7 +120,7 @@ handler_timer_failed:
 }
 
 /** @brief creates timer, timer can be set as oneshot or periodic
- *  whenever timer expires the respective handler is being called  
+ *  whenever timer expires the respective handler is being called
  */
 int make_timer(char *name, timer_t *timerID, int expire_seconds, int interval_seconds)
 {
@@ -128,7 +157,7 @@ make_timer_error:
 	return -1;
 }
 
-/** @brief handles reading ini file for start year parameter 
+/** @brief handles reading ini file for start year parameter
  */
 static int handler(void* user, const char* section, const char* name,
 		   const char* value)
@@ -155,7 +184,7 @@ void *connection_handler(void *);
 
 int socket_desc_main = 0;
 
-/** @brief remove space charecters from string 
+/** @brief remove space charecters from string
  */
 char * trim(char * s)
 {
@@ -222,7 +251,7 @@ read_config_file_data_error:
 	return -1;
 }
 
-/** @brief read file data, remove spaces 
+/** @brief read file data, remove spaces
  */
 void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 {
@@ -251,7 +280,7 @@ int file_exists(char *filename)
 }
 
 
-/** @brief perform I2C read 
+/** @brief perform I2C read
  */
 uint8_t read_i2c(char *path, uint8_t m_address, uint8_t m_register)
 {
@@ -272,7 +301,7 @@ failed_reading:
 	return read_data;
 }
 
-/** @brief checks if read data from I2C is vald, in Neuroderm implementation, 0XFF is invalid value 
+/** @brief checks if read data from I2C is vald, in Neuroderm implementation, 0XFF is invalid value
  */
 uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
 {
@@ -482,6 +511,23 @@ void init_latest_bit_results()
 	latest_bittest.rtc_functional_status = FAILED;
 }
 
+/** @brief create timer, used for entering suspend to RAM mode
+ */
+void create_suspend_to_ram_timer()
+{
+	if (timer_id_suspend_to_ram != NULL) {
+		if (timer_delete(timer_id_suspend_to_ram)) {
+			ND_printlog(ND_LOG_ERROR, "error, failed deleting timer\n");
+			return;
+		}
+	}
+
+	if (make_timer("Suspend To Ram Timer", &timer_id_suspend_to_ram, 2, 0))
+		ND_printlog(ND_LOG_ERROR, "error, failed creating timer\n");
+}
+
+
+
 /** @brief create timer, used for chacking RTC time is progressing
  */
 void create_rtc_functional_timer(char *filebufferl, size_t size_filebufferl)
@@ -630,7 +676,7 @@ int main(void)
 }
 
 /** @brief handle socket connection opened.
- *  parse message recived, perform needed actions 
+ *  parse message recived, perform needed actions
  *  and reply accordinglly
  */
 void *connection_handler(void *socket_desc)
@@ -670,13 +716,12 @@ void *connection_handler(void *socket_desc)
 			//	commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
 			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
 			//filter wireless charger command in case wc alarm is open
-			if ((strcmp(commandFile.name,"/sys/devices/soc0/filling_station-pm/wpc_stby/value") == 0) && alarms.wc_high_temperature_alarm == 1)
-			{
+			if ((strcmp(commandFile.name, "/sys/devices/soc0/filling_station-pm/wpc_stby/value") == 0) && alarms.wc_high_temperature_alarm == 1) {
 				ND_printlog(ND_LOG_INFO, "disable WC status change, wc alarm status open and FW limits access in this case");
-                                if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
-                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-                                if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
-                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				goto end_selection;
 			}
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
@@ -754,18 +799,17 @@ void *connection_handler(void *socket_desc)
 			example: ./send.o 10.0.0.36 write_time:060911052016.00
 			*/
 			if (check_snprintf(snprintf(commandFile.value, YEAR_STRING_LEN, "%s", strstr(client_message, ".") - 4), sizeof(commandFile.value) / sizeof(char)))
-                                ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (str2int(&date_year, commandFile.value, YEAR_STRING_LEN, sizeof(commandFile.value) / sizeof(char)) != STR2INT_SUCCESS)
-                        	ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "year:%d\n", date_year);
-			if (date_year > MAX_YEAR_ALLOWED)    //maximal year allowed on this Android OS 
-			{
-                                ND_printlog(ND_LOG_ERROR, "year set is greater then maximal allowed year on OS");
-                                if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
-                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-                                if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
-                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-                                goto end_selection;
+			if (date_year > MAX_YEAR_ALLOWED) {  //maximal year allowed on this Android OS
+				ND_printlog(ND_LOG_ERROR, "year set is greater then maximal allowed year on OS");
+				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				goto end_selection;
 			}
 			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
@@ -901,30 +945,35 @@ void *connection_handler(void *socket_desc)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				ND_printlog(ND_LOG_INFO, "set watchdog file to 0 since state has been read");
 				safe_close(fd);
-			}   
+			}
 		} else if ((ptr = strstr(client_message, "switch_apk")) != NULL) {
-		    //example: switch_apk=com.neuroderm.ct_app
+			//example: switch_apk=com.neuroderm.ct_app
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
 			if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			if (strcmp(commandFile.value, ND_HOME_APK) == 0 )
+			if (strcmp(commandFile.value, ND_HOME_APK) == 0)
 				exec_system_command(VAR_OPEN_ND_MAIN_APK, "/system/bin/ate_commands.sh");
-			else if (strcmp(commandFile.value, ND_CTA_APK) == 0 )
-				exec_system_command(VAR_OPEN_ND_CTA_APK, "/system/bin/ate_commands.sh");			
+			else if (strcmp(commandFile.value, ND_CTA_APK) == 0)
+				exec_system_command(VAR_OPEN_ND_CTA_APK, "/system/bin/ate_commands.sh");
 		} else if ((ptr = strstr(client_message, "ate_mode")) != NULL) {
-                    //example: ate_mode=1
-                        if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
-                                ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-                        ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
-                        if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
-                                ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-                        if (strcmp(commandFile.value, EXITATEMODE) == 0 )
-                                exec_system_command(VAR_COMMAND_EXITATEMODE, "/system/bin/ate_commands.sh");
-                        else if (strcmp(commandFile.value, ENTERATEMODE) == 0 )
-                                exec_system_command(VAR_COMMAND_ENTERATEMODE, "/system/bin/ate_commands.sh");
-                }
+			//example: ate_mode=1
+			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
+			if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			if (strcmp(commandFile.value, EXITATEMODE) == 0)
+				exec_system_command(VAR_COMMAND_EXITATEMODE, "/system/bin/ate_commands.sh");
+			else if (strcmp(commandFile.value, ENTERATEMODE) == 0)
+				exec_system_command(VAR_COMMAND_ENTERATEMODE, "/system/bin/ate_commands.sh");
+		} else if ((ptr = strstr(client_message, "sleep_now")) != NULL) {
+			/*action is suspend to ram
+			example: sleep_now
+			*/
+			create_suspend_to_ram_timer();
+		}
 
 		//sleep(1);
 	}
