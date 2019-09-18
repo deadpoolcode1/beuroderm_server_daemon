@@ -22,6 +22,7 @@
 #include <time.h>
 #include <cutils/klog.h>
 #include <ND_LogLibrary.h>
+#include <cutils/properties.h>
 #include "inih/ini.h"
 #include "parson/parson.h"
 #include "i2c.h"
@@ -973,7 +974,16 @@ void *connection_handler(void *socket_desc)
 			example: sleep_now
 			*/
 			create_suspend_to_ram_timer();
+		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			property_get("sys.boot_completed", returnMsg, "0");
+			returnMsg[1] = '\0';
+			if (send(sock , returnMsg , 2, 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		}
+
+
 
 		//sleep(1);
 	}
