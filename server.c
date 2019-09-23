@@ -942,9 +942,9 @@ void *connection_handler(void *socket_desc)
 			} else {
 				if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				if (write(fd, "POR", strlen("POR")) == -1)
+				if (write(fd, "POW", strlen("POW")) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				ND_printlog(ND_LOG_INFO, "set watchdog file to 0 since state has been read");
+				ND_printlog(ND_LOG_INFO, "set watchdog file to POW since state has been read");
 				safe_close(fd);
 			}
 		} else if ((ptr = strstr(client_message, "switch_apk")) != NULL) {
