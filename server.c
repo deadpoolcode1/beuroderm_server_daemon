@@ -981,6 +981,37 @@ void *connection_handler(void *socket_desc)
 			returnMsg[1] = '\0';
 			if (send(sock , returnMsg , 2, 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+		} else if ((ptr = strstr(client_message, "write_command:device_charger")) != NULL) {
+			//example: write_command:device_charger=1
+			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			if (strcmp(commandFile.value, "0") == 0)
+				snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", BATTERY_CHARGER_OFF), sizeof(commandFile.value) / sizeof(char);
+			else if (strcmp(commandFile.value, "1") == 0)
+				snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", BATTERY_CHARGER_ON), sizeof(commandFile.value) / sizeof(char);
+			else {
+				ND_printlog(ND_LOG_INFO, "invalid value\n");
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				goto end_selection;
+			}
+			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
+			fd = open_file("/sys/class/power_supply/max77818-charger/online", O_RDWR, EMPTY_MODE);
+			if (fd < 0) {
+				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_NACK), sizeof(returnMsg) / sizeof(char)))
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			} else {
+				if (write(fd, commandFile.value, strlen(commandFile.value)) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				safe_close(fd);
+				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			}
+
 		}
 
 
