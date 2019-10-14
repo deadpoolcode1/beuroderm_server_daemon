@@ -2,7 +2,7 @@
  *
  * @brief send module.
  *
- * provides agent to send messages to server module, can be either 
+ * provides agent to send messages to server module, can be either
  * compiled to X86 for sending messages from PC to CS, or to arm to
  * send messages internally in CS (adress 127.0.0.1)
  *

@@ -61,6 +61,7 @@ alarms_struct alarms;
 struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, 0, {0}, 0};
 char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
+int exec_system_command(const char * parameter, const char* process_to_execute);
 
 static void try_write_file(char *filename, char *value)
 {
@@ -110,6 +111,7 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 		try_write_file("/sys/devices/soc0/filling_station-pm/disp_stby/value", "1");
 		try_write_file("/sys/devices/soc0/filling_station-pm/lr_h_inv/value", "1");
 		try_write_file("/sys/devices/soc0/filling_station-pm/rst_ctp/value", "1");
+		exec_system_command(VAR_SEND_KEYCODE_WAKEUP, "/system/bin/ate_commands.sh");
 		return;
 	}
 
@@ -577,8 +579,11 @@ void bittest_init_full()
 	init_latest_bit_results();
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	i2c_communications_tests();
-	if (file_exists("/dev/hci_tty") > -1)
-		latest_bittest.ble_status = PASSED;
+	if (!(read_file_data(ble_result_path, filebuffer, SHORT_BUFFER_LEN))) {
+		ND_printlog(ND_LOG_INFO, "\nfilebuffer: %s \n", filebuffer);
+		if (strncmp(filebuffer, "pass", 4) == 0)
+			latest_bittest.ble_status = PASSED;
+	}
 	if (!(read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))) {
 		if ((str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) == STR2INT_SUCCESS) && (battery_value > 0))
 			latest_bittest.battery_status = PASSED;
@@ -974,6 +979,9 @@ void *connection_handler(void *socket_desc)
 			example: sleep_now
 			*/
 			create_suspend_to_ram_timer();
+			if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			exec_system_command(VAR_SEND_KEYCODE_SLEEP, "/system/bin/ate_commands.sh");
 		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);

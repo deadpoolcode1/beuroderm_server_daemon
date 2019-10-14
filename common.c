@@ -35,7 +35,7 @@ int check_snprintf(int ret_value, int max_length)
 	return -1;
 }
 
-/** @brief converts string to integer, performs tests and catchs 
+/** @brief converts string to integer, performs tests and catchs
  *  errors in conversion
  */
 int str2int(int *out, char *s, int max_spaces, int size_of_string)
@@ -89,7 +89,7 @@ exit_str2int:
 	return ret;
 }
 
-/** @brief removes number of chars from beginning of string 
+/** @brief removes number of chars from beginning of string
  */
 void chop_string(char *str, size_t n)
 {
@@ -100,7 +100,7 @@ void chop_string(char *str, size_t n)
 	memmove(str, str + n, len - n + 1);
 }
 
-/** @brief open file, log errors 
+/** @brief open file, log errors
  */
 int open_file(char *filename, int flags, mode_t mode)
 {

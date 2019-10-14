@@ -33,6 +33,7 @@
 #define i2c2_path "/dev/i2c-2"
 #define rtc_time_path "/sys/class/rtc/rtc0/since_epoch"
 #define battery_exists_path "/sys/class/power_supply/battery/present"
+#define ble_result_path "/data/bt_result"
 //i2c0_path
 #define i2c_pmic_status_address 0x36
 #define i2c_pmic_status_register 0x00
@@ -73,6 +74,8 @@
 #define VAR_COMMAND_ENTERATEMODE "10"
 #define  VAR_OPEN_ND_MAIN_APK "14"
 #define  VAR_OPEN_ND_CTA_APK "15"
+#define  VAR_SEND_KEYCODE_SLEEP "16"
+#define  VAR_SEND_KEYCODE_WAKEUP "17"
 //APK NAMES
 #define ND_HOME_APK "com.neuroderm.station"
 #define ND_CTA_APK "com.neuroderm.ct_app"
@@ -80,8 +83,8 @@
 #define YEAR_STRING_LEN 5
 #define MAX_YEAR_ALLOWED 2038
 //API write_command:device_charger support
-#define BATTERY_CHARGER_OFF "2"
-#define BATTERY_CHARGER_ON "3"
+#define BATTERY_CHARGER_OFF "0"
+#define BATTERY_CHARGER_ON "1"
 
 typedef struct {
 	char* year;
