@@ -23,7 +23,7 @@
 #define SOCKET_MESSAGE_MAX_LENGTH 5000
 #define REPLY_ACK "ACK\n"
 #define REPLY_NACK "NACK\n"
-#define API_VERSION "6"
+#define API_VERSION "7"
 #define MAX_FILE_SIZE 10000
 #define CRC_STRING_JSON "\"crc\":\""
 #define CRC_STRING_INI "crc="

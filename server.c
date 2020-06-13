@@ -35,15 +35,15 @@ timer_t timer_id_suspend_to_ram;
 
 
 struct bittest_info {
-	uint8_t i2c_pmic_status;                        /*!< i2c0 0x36 */
+	uint8_t i2c_pmic_status;                /*!< i2c0 0x36 */
 	uint8_t i2c_fuelgauge_status;           /*!< i2c0 0x66 */
 	uint8_t i2c_max77818top_status;         /*!< i2c0 0x69 */
-	uint8_t i2c_max77818charger_status;             /*!< i2c0 0x18 */
+	uint8_t i2c_max77818charger_status;     /*!< i2c0 0x18 */
 	uint8_t i2c_displaytouchpanel_status;   /*!< i2c0 0x26 */
 	uint8_t i2c_max77816dc3_status;         /*!< i2c2 0x18 */
 	uint8_t i2c_rtc_status;                 /*!< i2c2 0x68 */
-	uint8_t i2c_rtcmemblock0_status;                /*!< i2c2 0x69 */
-	uint8_t i2c_rtcmemblock1_status;                /*!< i2c2 0x6A */
+	uint8_t i2c_rtcmemblock0_status;        /*!< i2c2 0x69 */
+	uint8_t i2c_rtcmemblock1_status;        /*!< i2c2 0x6A */
 	uint8_t i2c_cradletempsensor_status;    /*!< i2c2 0x48 */
 	uint8_t i2c_ioexpender_status;          /*!< i2c2 0x20 */
 	uint8_t ble_status;
@@ -866,7 +866,7 @@ void *connection_handler(void *socket_desc)
 			//Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
 			read_file_data_no_space("/sys/class/switch/hall_detect/state", read1, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/power_supply/max77818-charger/online", read2, size_of_array_read_file);
-			read_file_data_no_space("/sys/class/switch/hall_detect/state", read3, size_of_array_read_file);
+			read_file_data_no_space("/sys/devices/soc0/filling_station-pm/wpc_stby/value", read3, size_of_array_read_file);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status", read1
 						    , "battery_status_charging", read2,
 						    "w_charger_state", read3),  sizeof(returnMsg) / sizeof(char)))
