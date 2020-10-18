@@ -722,7 +722,8 @@ void *connection_handler(void *socket_desc)
 			//	commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
 			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
 			//filter wireless charger command in case wc alarm is open
-			if ((strcmp(commandFile.name, "/sys/devices/soc0/filling_station-pm/wpc_stby/value") == 0) && alarms.wc_high_temperature_alarm == 1) {
+			if (((strcmp(commandFile.name, "/sys/devices/soc0/filling_station-pm/wpc_stby/value") == 0) && alarms.wc_high_temperature_alarm == 1) ||
+				((strcmp(commandFile.name, "/data/wc_enable_disable_api") == 0) && alarms.wc_high_temperature_alarm == 1)) {
 				ND_printlog(ND_LOG_INFO, "disable WC status change, wc alarm status open and FW limits access in this case");
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
