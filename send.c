@@ -56,6 +56,7 @@ int main(int argc , char *argv[])
 	//Connect to remote server
 	if (connect(socket_desc , (struct sockaddr *)&server , sizeof(server)) < 0) {
 		puts("connect error");
+		close(socket_desc);
 		return 1;
 	}
 
@@ -64,6 +65,7 @@ int main(int argc , char *argv[])
 	message = argv[2];
 	if (send(socket_desc , message , strlen(message) , 0) < 0) {
 		puts("Send failed");
+		close(socket_desc);
 		return 1;
 	}
 	puts("Data Send\n");

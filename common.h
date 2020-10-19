@@ -10,11 +10,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifndef C_COMPILE
+#include <ND_LogLibrary.h>
+#endif
 
 #define EMPTY_MODE 0
 #define MAX_ALLOWED_TRAILING_SPACES 5
 #define error_message_read_file "error reading file"
 #define error_message_fw_error "error, fw unexpected behaviour\n"
+#define PRINTE(...) ND_printlog(ND_LOG_ERROR, "__VA_ARGS__", strerror(errno));exit(-1);
 
 enum {
 	STR2INT_SUCCESS,

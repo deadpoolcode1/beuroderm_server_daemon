@@ -120,7 +120,7 @@ int safe_close(int fd)
 {
 	int ret = 0;
 	if ((ret = close(fd)))
-		ND_printlog(ND_LOG_ERROR, "error, failed closing file : %s\n", strerror(errno));
+		PRINTE("error, failed closing file : %s\n");
 	return ret;
 }
 

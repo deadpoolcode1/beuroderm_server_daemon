@@ -66,15 +66,12 @@ int exec_system_command(const char * parameter, const char* process_to_execute);
 static void try_write_file(char *filename, char *value)
 {
 	int fd = 0;
-	fd = open_file(filename, O_RDWR, EMPTY_MODE);
-	if (fd < 0) {
-		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-
+	if ((fd = open_file(filename, O_RDWR, EMPTY_MODE)) < 0){
+		PRINTE (error_message_fw_error);
 	} else {
 		if (write(fd, value, strlen(value)) == -1)
 			safe_close(fd);
 	}
-
 }
 
 /** @brief function called when timer expires
@@ -403,15 +400,11 @@ int crc_passed(char *filename, uint8_t type)
 		return -1;
 	}
 	//assign memory for buffer
-	if ((buffer = (char *)malloc(buffer_size * sizeof(char))) == NULL) {
-		ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer, exiting");
-		exit(1);
-	}
+	if ((buffer = (char *)malloc(buffer_size * sizeof(char))) == NULL) 
+		PRINTE("error, Unable to allocate buffer, exiting");
 	//assign memory for filtered buffer
-	if ((buffer_filtered = (char *)malloc(buffer_size * sizeof(char))) == NULL) {
-		ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer_filtered, exiting");
-		exit(1);
-	}
+	if ((buffer_filtered = (char *)malloc(buffer_size * sizeof(char))) == NULL) 
+		PRINTE("error, Unable to allocate buffer_filtered, exiting");
 	buffer_filtered[0] = '\0';
 	while (-1 != getline(&buffer, &buffer_size, file)) {
 		if (check_snprintf(snprintf(&full_buffer[strlen(full_buffer)], sizeof(full_buffer) / sizeof(char), "%s", buffer), sizeof(full_buffer) / sizeof(char)))
@@ -642,15 +635,13 @@ int main(void)
 	server.sin_port = htons(5797);
 
 	//Bind
-	if (bind(socket_desc, (struct sockaddr *)&server , sizeof(server)) < 0) {
-		ND_printlog(ND_LOG_ERROR, "error, bind failed\n");
-		return 1;
-	}
+	if (bind(socket_desc, (struct sockaddr *)&server , sizeof(server)) < 0) 
+		PRINTE("error, bind failed\n");
 	socket_desc_main = socket_desc;
 	ND_printlog(ND_LOG_INFO, "bind done\n");
 	//Listen
 	if (listen(socket_desc , SOMAXCONN) == -1)
-		ND_printlog(ND_LOG_ERROR, "error, can't listen to port\n");
+		PRINTE("error, can't listen to port\n");
 	//Accept and incoming connection
 	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
