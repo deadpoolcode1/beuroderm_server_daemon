@@ -18,7 +18,7 @@
 #define MAX_ALLOWED_TRAILING_SPACES 5
 #define error_message_read_file "error reading file"
 #define error_message_fw_error "error, fw unexpected behaviour\n"
-#define PRINTE(...) ND_printlog(ND_LOG_ERROR, "__VA_ARGS__", strerror(errno));exit(-1);
+#define PRINTE(...) ND_printlog(ND_LOG_ERROR1, "__VA_ARGS__", strerror(errno));
 
 enum {
 	STR2INT_SUCCESS,
@@ -33,6 +33,7 @@ enum {
 	OPEN_FILE_READ,
 	OPEN_FILE_READ_WRITE
 };
+
 
 int check_snprintf(int ret_value, int max_length);
 int str2int(int *out, char *s, int max_spaces, int size_of_string);
