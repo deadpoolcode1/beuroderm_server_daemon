@@ -120,7 +120,7 @@ int safe_close(int fd)
 {
 	int ret = 0;
 	if ((ret = close(fd)))
-		PRINTE("error, failed closing file : %s\n");
+		ND_printlog(ND_LOG_ERROR, "error Can not close file \n");
 	return ret;
 }
 
@@ -129,10 +129,8 @@ int safe_close(int fd)
 void safe_close_stream(FILE *fd)
 {
 	int err = 0;
-	if ((err = fclose(fd))) {
+	if ((err = fclose(fd)))
 		ND_printlog(ND_LOG_ERROR, "Error number: %d closing file", err);//after failed fclose behaviour is unexpected
-		exit(err);
-	}
 }
 
 /** @brief write file, lock file used to avoid race conditioning

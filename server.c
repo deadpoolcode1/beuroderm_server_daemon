@@ -70,8 +70,9 @@ static void try_write_file(char *filename, char *value)
 		PRINTE (error_message_fw_error);
 	} else {
 		if (write(fd, value, strlen(value)) == -1)
-			safe_close(fd);
+			ND_printlog(ND_LOG_ERROR, "error writing file: %s\n", filename);
 	}
+	safe_close(fd);
 }
 
 /** @brief function called when timer expires
@@ -217,6 +218,8 @@ int read_file_data(char *filename, char *buffer, size_t buffer_size)
 
 read_file_data_error:
 	ND_printlog(ND_LOG_ERROR, "Error, failed reading file %s, %s", filename, strerror(errno));
+	if (fptr != NULL)
+		safe_close_stream(fptr);
 	return -1;
 }
 
@@ -248,6 +251,8 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 
 read_config_file_data_error:
 	ND_printlog(ND_LOG_ERROR, "Error, failed reading config file %s, %s", filename, strerror(errno));
+	if (fptr != NULL)
+		safe_close_stream(fptr);
 	return -1;
 }
 
@@ -295,9 +300,11 @@ uint8_t read_i2c(char *path, uint8_t m_address, uint8_t m_register)
 		goto failed_reading;
 	if ((read_data = i2c_smbus_read_byte_data(file, m_register)) == -1)
 		goto failed_reading;
+	safe_close(file);
 	return read_data;
 failed_reading:
 	ND_printlog(ND_LOG_ERROR, "error, failed reading i2c errno:%s\n", strerror(errno));
+	safe_close(file);
 	return read_data;
 }
 
@@ -400,11 +407,11 @@ int crc_passed(char *filename, uint8_t type)
 		return -1;
 	}
 	//assign memory for buffer
-	if ((buffer = (char *)malloc(buffer_size * sizeof(char))) == NULL) 
-		PRINTE("error, Unable to allocate buffer, exiting");
+	if ((buffer = (char *)malloc(buffer_size * sizeof(char))) == NULL) 	
+		goto exit_crc_passed;
 	//assign memory for filtered buffer
 	if ((buffer_filtered = (char *)malloc(buffer_size * sizeof(char))) == NULL) 
-		PRINTE("error, Unable to allocate buffer_filtered, exiting");
+		goto exit_crc_passed;
 	buffer_filtered[0] = '\0';
 	while (-1 != getline(&buffer, &buffer_size, file)) {
 		if (check_snprintf(snprintf(&full_buffer[strlen(full_buffer)], sizeof(full_buffer) / sizeof(char), "%s", buffer), sizeof(full_buffer) / sizeof(char)))
@@ -429,6 +436,11 @@ int crc_passed(char *filename, uint8_t type)
 	free(buffer);
 	free(buffer_filtered);
 	return (crc_calculated == crc_expected) ? 0 : 1;
+
+exit_crc_passed:
+	fclose(file);
+	PRINTE("error, Unable to allocate buffer, exiting");
+	return -1;
 }
 
 /** @brief return current BIT status, only read existing status not performing test
@@ -482,6 +494,8 @@ char * return_current_bit_status(char *update_string)
 		ND_printlog(ND_LOG_ERROR, "error, JSON serilize to string failed\n");
 	ND_printlog(ND_LOG_INFO, "bit test: %s\n", update_string);
 	json_value_free(root_value);
+	if (update_string == NULL)
+		PRINTE("error, failed reading bit status\n");
 	return update_string;
 }
 
@@ -591,7 +605,7 @@ void bittest_init_full()
 	if (crc_passed(APK_CONFIG_FILE_PATH, FILE_JSON) == 0)
 		latest_bittest.apk_crc_status = PASSED;
 
-	if (strftime(latest_bittest.timestamp, REPLY_STRING_LENGTH, "%c" , p) == 0)
+	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
 
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
@@ -628,7 +642,7 @@ int main(void)
 	bittest_init_full();
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
-		ND_printlog(ND_LOG_ERROR, "error, Could not create socket\n");
+		PRINTE("error, Could not create socket\n");
 	//Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;
@@ -652,7 +666,7 @@ int main(void)
 		//Reply to the client
 		pthread_t sniffer_thread;
 		if ((new_sock = malloc(sizeof(int))) == NULL)
-			ND_printlog(ND_LOG_ERROR, "error, Unable to allocate buffer");
+			PRINTE ("error, Unable to allocate buffer");
 		*new_sock = new_socket;
 		if (pthread_create(&sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
@@ -709,7 +723,8 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if ((ptr = strstr(commandFile.name, "=")) == NULL)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			*ptr  =  '\0';
+			else
+				*ptr  =  '\0';
 			//	commandFile.name[findSubstr(commandFile.name, "=") - 1] = '\0';
 			ND_printlog(ND_LOG_INFO, "file to write:%s\n", commandFile.name);
 			//filter wireless charger command in case wc alarm is open
@@ -777,6 +792,7 @@ void *connection_handler(void *socket_desc)
 		} else if ((ptr = strstr(client_message, "read_bit:bittest")) != NULL) {
 			/*action is bittest_read
 			*/
+			client_message[0] = '\0';
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
@@ -912,7 +928,8 @@ void *connection_handler(void *socket_desc)
 			json_object_set_boolean(root_object, "battery_high_temperature_alarm", alarms.battery_high_temperature_alarm);
 			json_object_set_boolean(root_object, "battery_not_detected", alarms.battery_not_detected);
 			json_object_set_boolean(root_object, "wc_error_alarm", alarms.wc_error_alarm);
-			serialized_string = json_serialize_to_string_pretty(root_value);
+			if ((serialized_string = json_serialize_to_string_pretty(root_value)) == NULL)
+				PRINTE("error, read command:alarms failed\n");
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", serialized_string), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			json_free_serialized_string(serialized_string);
