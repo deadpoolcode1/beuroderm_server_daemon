@@ -617,6 +617,10 @@ void bittest_init_full()
 int exec_system_command(const char * parameter, const char* process_to_execute)
 {
 	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
+	if (strlen(parameter) > MAX_SYSTEM_COMMAND_LEN)
+		return -1;
+        if (strncmp (parameter,"sudo",strlen("sudo") == 0))
+		return -1;
 	pid_t my_pid, parent_pid, child_pid;
 	if ((child_pid = fork()) < 0) {
 		ND_printlog(ND_LOG_ERROR, "fork failed");
@@ -649,13 +653,17 @@ int main(void)
 	server.sin_port = htons(5797);
 
 	//Bind
-	if (bind(socket_desc, (struct sockaddr *)&server , sizeof(server)) < 0) 
+	if (bind(socket_desc, (struct sockaddr *)&server , sizeof(server)) < 0) {
+		close(socket_desc);
 		PRINTE("error, bind failed\n");
+	}
 	socket_desc_main = socket_desc;
 	ND_printlog(ND_LOG_INFO, "bind done\n");
 	//Listen
-	if (listen(socket_desc , SOMAXCONN) == -1) 
+	if (listen(socket_desc , SOMAXCONN) == -1) {	
+		close(socket_desc);
 		PRINTE("error, can't listen to port\n");
+	}
 	//Accept and incoming connection
 	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
@@ -665,8 +673,10 @@ int main(void)
 		ND_printlog(ND_LOG_INFO, "server Connection accepted\n");
 		//Reply to the client
 		pthread_t sniffer_thread;
-		if ((new_sock = malloc(sizeof(int))) == NULL)
+		if ((new_sock = malloc(sizeof(int))) == NULL) {
+			free(new_sock);
 			PRINTE ("error, Unable to allocate buffer");
+		}
 		*new_sock = new_socket;
 		if (pthread_create(&sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
@@ -943,6 +953,8 @@ void *connection_handler(void *socket_desc)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			} else {
 				read(fd, commandFile.value, sizeof(commandFile.value));
+				if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", commandFile.value), sizeof(commandFile.value) / sizeof(char)))
+                                        ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
 				safe_close(fd);
 			}

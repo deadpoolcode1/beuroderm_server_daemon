@@ -67,6 +67,7 @@
 #define SHORT_BUFFER_LEN 10
 #define RTC_DATA_LEN 20
 #define FILE_BUFFER_LEN 150
+#define MAX_SYSTEM_COMMAND_LEN 150
 //APK open commands
 #define EXITATEMODE "0"
 #define ENTERATEMODE "1"
