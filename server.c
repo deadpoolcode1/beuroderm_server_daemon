@@ -183,8 +183,6 @@ void delay(unsigned int mseconds)
 
 void *connection_handler(void *);
 
-int socket_desc_main = 0;
-
 /** @brief remove space charecters from string
  */
 char * trim(char * s)
@@ -203,10 +201,10 @@ char * trim(char * s)
 int read_file_data(char *filename, char *buffer, size_t buffer_size)
 {
 	FILE *fptr = NULL;
-
+	char *tmp_buffer = NULL;
 	if ((fptr = fopen(filename, "r")) == NULL)
 		goto read_file_data_error;
-	while (-1 != getline(&buffer, &buffer_size, fptr)) {
+	while (-1 != getline(&tmp_buffer, &buffer_size, fptr)) {
 	}
 	if (fflush(stdout) == EOF)
 		goto read_file_data_error;
@@ -214,12 +212,16 @@ int read_file_data(char *filename, char *buffer, size_t buffer_size)
 	// finished
 	if (fclose(fptr) == EOF)
 		goto read_file_data_error;
+	if (check_snprintf(snprintf(buffer, buffer_size, "%s", tmp_buffer), buffer_size))
+		goto read_file_data_error;
+	free (tmp_buffer);
 	return 0;
 
 read_file_data_error:
 	ND_printlog(ND_LOG_ERROR, "Error, failed reading file %s, %s", filename, strerror(errno));
 	if (fptr != NULL)
 		safe_close_stream(fptr);
+	free (tmp_buffer);
 	return -1;
 }
 
@@ -228,16 +230,17 @@ read_file_data_error:
  */
 int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 {
+	char *tmp_buffer = NULL;
 	char *line = NULL;
 	FILE *fptr = NULL;
 	size_t line_size = NULL;
 
 	if ((fptr = fopen(filename, "r")) == NULL)
 		goto read_config_file_data_error;
-	while (getline(&line, &line_size, fptr) != -1) {
-		if (strlen(line) > MIN_CONFIG_LINE_LEN) {
-			ND_printlog(ND_LOG_ERROR, "line %s\n", line);
-			if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size - strlen(buffer), "%s", line), buffer_size))
+	while (getline(&tmp_buffer, &buffer_size, fptr) != -1) {
+		if (strlen(tmp_buffer) > MIN_CONFIG_LINE_LEN) {
+			ND_printlog(ND_LOG_ERROR, "tmp_buffer %s\n", tmp_buffer);
+			if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size - strlen(buffer), "%s", tmp_buffer), buffer_size))
 				goto read_config_file_data_error;
 		}
 	}
@@ -246,13 +249,17 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 	// make sure we close the filewhen we're
 	// finished
 	safe_close_stream(fptr);
+	if (check_snprintf(snprintf(buffer, buffer_size, "%s", tmp_buffer), buffer_size))
+        	goto read_config_file_data_error;
 
+	free (tmp_buffer);
 	return 0;
 
 read_config_file_data_error:
 	ND_printlog(ND_LOG_ERROR, "Error, failed reading config file %s, %s", filename, strerror(errno));
 	if (fptr != NULL)
 		safe_close_stream(fptr);
+	free(tmp_buffer);
 	return -1;
 }
 
@@ -657,7 +664,6 @@ int main(void)
 		close(socket_desc);
 		PRINTE("error, bind failed\n");
 	}
-	socket_desc_main = socket_desc;
 	ND_printlog(ND_LOG_INFO, "bind done\n");
 	//Listen
 	if (listen(socket_desc , SOMAXCONN) == -1) {	
