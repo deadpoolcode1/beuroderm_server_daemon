@@ -234,13 +234,11 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 	char *line = NULL;
 	FILE *fptr = NULL;
 	size_t line_size = NULL;
-
 	if ((fptr = fopen(filename, "r")) == NULL)
 		goto read_config_file_data_error;
 	while (getline(&tmp_buffer, &buffer_size, fptr) != -1) {
 		if (strlen(tmp_buffer) > MIN_CONFIG_LINE_LEN) {
-			ND_printlog(ND_LOG_ERROR, "tmp_buffer %s\n", tmp_buffer);
-			if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size - strlen(buffer), "%s", tmp_buffer), buffer_size))
+			if (check_snprintf(snprintf(buffer + strlen(buffer), buffer_size, "%s", tmp_buffer), buffer_size))
 				goto read_config_file_data_error;
 		}
 	}
@@ -249,9 +247,6 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 	// make sure we close the filewhen we're
 	// finished
 	safe_close_stream(fptr);
-	if (check_snprintf(snprintf(buffer, buffer_size, "%s", tmp_buffer), buffer_size))
-        	goto read_config_file_data_error;
-
 	free (tmp_buffer);
 	return 0;
 
