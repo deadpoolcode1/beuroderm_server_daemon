@@ -877,7 +877,8 @@ void *connection_handler(void *socket_desc)
 			//Response: {"temp_cpu": "temp","temp_wc": "temp"}
 			read_file_data_no_space("/sys/class/thermal/thermal_zone1/temp", read1, size_of_array_read_file);
 			read_file_data_no_space("/sys/class/hwmon/hwmon1/temp1_input", read2, size_of_array_read_file);
-			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\"} \n", "temp_cpu", read1, "temp_wc", read2), sizeof(returnMsg) / sizeof(char)))
+			read_file_data_no_space("/sys/class/power_supply/battery/temp", read3, size_of_array_read_file);
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\,\"%s\":\"%s\"} \n", "temp_cpu", read1, "temp_wc", read2, "temp_batt", read3), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
