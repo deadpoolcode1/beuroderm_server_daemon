@@ -16,4 +16,8 @@ __s32 i2c_smbus_access(int file, char read_write, __u8 command,
 
 
 __s32 i2c_smbus_read_byte_data(int file, __u8 command);
+
+__s32 i2c_smbus_write_byte_data(int file, __u8 command, __u8 value);
+
+__s32 i2c_smbus_read_byte_data(int file, __u8 command);
 #endif

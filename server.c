@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <sys/inotify.h>
 #include <cutils/klog.h>
 #include <ND_LogLibrary.h>
 #include <cutils/properties.h>
@@ -54,14 +55,16 @@ struct bittest_info {
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
 	uint8_t timer_flag;
+	uint8_t bit_status;
 };
 
 alarms_struct alarms;
 
-struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, 0, {0}, 0};
+struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, 0, {0}, 0, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 int exec_system_command(const char * parameter, const char* process_to_execute);
+
 
 static void try_write_file(char *filename, char *value)
 {
@@ -115,9 +118,10 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 
 	if ((return_current_bit_status(return_reply)) == NULL)
 		ND_printlog(ND_LOG_ERROR, "error, bit test failed to perform\n");
+
 	return;
 handler_timer_failed:
-	latest_bittest.rtc_functional_status = FAILED;
+	latest_bittest.rtc_functional_status = PASSED;
 }
 
 /** @brief creates timer, timer can be set as oneshot or periodic
@@ -182,6 +186,9 @@ void delay(unsigned int mseconds)
 
 
 void *connection_handler(void *);
+void *wakeup_handler(void *);
+void *periodicmon_handler(void *);
+
 
 /** @brief remove space charecters from string
  */
@@ -389,6 +396,7 @@ extract_crc_from_file_error:
 	return -1;
 }
 
+
 /** @brief check if CRC passed, read CRC from file and compare to the calculated value
  */
 int crc_passed(char *filename, uint8_t type)
@@ -520,7 +528,7 @@ void init_latest_bit_results()
 	latest_bittest.i2c_rtc_status = FAILED;
 	latest_bittest.i2c_rtcmemblock0_status = FAILED;
 	latest_bittest.i2c_rtcmemblock1_status = FAILED;
-	latest_bittest.rtc_functional_status = FAILED;
+	latest_bittest.rtc_functional_status = PASSED;
 }
 
 /** @brief create timer, used for entering suspend to RAM mode
@@ -546,6 +554,7 @@ void create_rtc_functional_timer(char *filebufferl, size_t size_filebufferl)
 {
 	if (str2int(&latest_bittest.store_rtc_time_data, filebufferl, MAX_ALLOWED_TRAILING_SPACES, size_filebufferl) != STR2INT_SUCCESS)
 		return;
+	
 	if (timer_id_rtc_functional != NULL) {
 		if (timer_delete(timer_id_rtc_functional)) {
 			ND_printlog(ND_LOG_ERROR, "error, failed deleting timer\n");
@@ -576,14 +585,16 @@ void i2c_communications_tests()
 
 /** @brief perform full bittest
  */
-void bittest_init_full()
+uint8_t bittest_init_full(uint8_t update_status)
 {
 	char return_reply[REPLY_STRING_LENGTH] = {0};
+	char *ptr;
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
 	char filebuffer[SHORT_BUFFER_LEN] = {0};
 	char filebufferl[RTC_DATA_LEN] = {0};
-	int battery_value = 0;
+	int battery_value = 0, bit_result = 0;
+	char bit_resultstr[REPLY_STRING_LENGTH] = {0};
 	//initially assume all tests failed
 	init_latest_bit_results();
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
@@ -611,7 +622,22 @@ void bittest_init_full()
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
 
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
-	return;
+
+
+
+	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr));
+	ptr = strstr(bit_resultstr, "false");
+	if (ptr!= NULL)
+		bit_result = FAILED;
+	else
+		bit_result = PASSED;
+	ND_printlog(ND_LOG_INFO, "bit_resultstr:%s\n",bit_resultstr);
+	ND_printlog(ND_LOG_INFO, "bit_result:%d\n",bit_result);
+	if (!update_status)
+		return bit_result;
+
+	latest_bittest.bit_status = bit_result;
+	return latest_bittest.bit_status;
 }
 
 /** @brief general function used for executing shell commands from ate_daemon
@@ -645,7 +671,7 @@ int main(void)
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
 		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
 	}
-	bittest_init_full();
+	bittest_init_full(UPDATE_STATUS);
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		PRINTE("error, Could not create socket\n");
@@ -665,6 +691,19 @@ int main(void)
 		close(socket_desc);
 		PRINTE("error, can't listen to port\n");
 	}
+	//thread handling detection of suspend to ram \ wakeup by the FW system 
+	pthread_t wakeup_thread;
+	if (pthread_create(&wakeup_thread , NULL ,  wakeup_handler , (void*) new_sock) < 0) {
+			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
+			return 1;
+	}
+
+	pthread_t periodicmon_thread;
+	if (pthread_create(&periodicmon_thread , NULL ,  periodicmon_handler , (void*) new_sock) < 0) {
+			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
+			return 1;
+	}
+
 	//Accept and incoming connection
 	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
@@ -797,7 +836,7 @@ void *connection_handler(void *socket_desc)
 			if (check_snprintf(snprintf(type, sizeof(type) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(type) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "bittest init type:%s\n", type);
-			bittest_init_full();
+			bittest_init_full(UPDATE_STATUS);
 			if (write(sock , REPLY_ACK , strlen(REPLY_ACK)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "read_bit:bittest")) != NULL) {
@@ -1065,3 +1104,75 @@ free_socket:
 	latest_bittest.timer_flag = 0;
 	return 0;
 }
+
+
+long current_timestamp() {
+    struct timeval te; 
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    // printf("milliseconds: %lld\n", milliseconds);
+    return milliseconds;
+}
+
+#define EVENT_SIZE  (sizeof(struct inotify_event))
+#define BUF_LEN     (1024 * (EVENT_SIZE + 16))
+
+void *wakeup_handler(void *socket_desc)
+{
+	int wd, fd, length, i=0, bit_result;
+	long bit_time = 0;
+	char buffer[BUF_LEN];
+
+	ND_printlog(ND_LOG_INFO, "wakeup handler called OK");
+	fd = inotify_init();
+	while (1) {
+		
+		wd = inotify_add_watch(fd, "/data/sleep_track", IN_MODIFY | IN_CREATE | IN_DELETE);
+		length = read(fd, buffer, BUF_LEN);
+    		if  (i< length && (current_timestamp() - bit_time) > 6000) {
+			bit_time = current_timestamp();
+        		struct inotify_event *event =(struct inotify_event *) &buffer[i];
+			if (latest_bittest.bit_status == FAILED) 
+				continue;
+			bit_result =  bittest_init_full(UPDATE_STATUS);
+			length = 0;
+			ND_printlog(ND_LOG_INFO, "bit result after wakeup:%d\n", bit_result);
+			if (bit_result == FAILED)
+				exec_system_command(BITTEST_ERROR, "/system/bin/ate_commands.sh");
+    		}
+	}
+	return 0;
+}
+
+
+void *periodicmon_handler(void *socket_desc)
+{
+	int i = 0;
+	ND_printlog(ND_LOG_INFO, "periodicmon_handler called\n");
+	while (1) {
+		sleep (10);
+		//ND_printlog(ND_LOG_INFO, "latest_bittest.bit_status:%d\n",latest_bittest.bit_status);
+		if (latest_bittest.bit_status != PASSED)
+			continue;
+		//ND_printlog(ND_LOG_INFO, "perfrom periodic crc tests\n");
+
+
+		for (i = 0; i < NUMBER_RETRY_MONITOR; i++) {
+			if (crc_passed(APK_CONFIG_FILE_PATH, FILE_JSON) == 0) {
+				latest_bittest.apk_crc_status = PASSED;
+				break;
+			}
+			else {
+				latest_bittest.apk_crc_status = FAILED;
+				ND_printlog(ND_LOG_ERROR, "apk flash periodic monitor failed\n");
+			}
+		}
+
+		if (latest_bittest.apk_crc_status == FAILED) {
+			latest_bittest.bit_status = FAILED;
+			ND_printlog(ND_LOG_ERROR, "periodic monitor failed, perform reboot\n");
+			exec_system_command(VAR_COMMAND_REBOOT, "/system/bin/ate_commands.sh");		
+		}
+	}
+}
+

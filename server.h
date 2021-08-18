@@ -87,6 +87,10 @@
 #define BATTERY_CHARGER_OFF "0"
 #define BATTERY_CHARGER_ON "1"
 
+#define NUMBER_RETRY_MONITOR 3 
+#define  VAR_COMMAND_REBOOT "0"
+#define  BITTEST_ERROR "600"
+
 typedef struct {
 	char* year;
 } configuration;
@@ -96,8 +100,18 @@ configuration config;
 enum BITRESULT            /* Defines results  */
 {
 	FAILED = 0,
-	PASSED
+	PASSED, 
+	BIT_NOT_PERFORMED
 } ;
+
+enum BITUPDATE            /* Defines results  */
+{
+	NOT_UPDATE_STATUS = 0,
+	UPDATE_STATUS, 
+} ;
+
+
+
 
 enum FILETYPE {
 	FILE_JSON,
