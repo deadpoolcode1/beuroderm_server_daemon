@@ -104,6 +104,15 @@ enum BITRESULT            /* Defines results  */
 	BIT_NOT_PERFORMED
 } ;
 
+
+enum BLOCKING_DEF          /* Defines blocking  */
+{
+        BLOCKING = 0,
+        NON_BLOCKING
+} ;
+
+
+
 enum BITUPDATE            /* Defines results  */
 {
 	NOT_UPDATE_STATUS = 0,

@@ -54,13 +54,12 @@ struct bittest_info {
 	uint8_t apk_crc_status;
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
-	uint8_t timer_flag;
 	uint8_t bit_status;
 };
 
 alarms_struct alarms;
 
-struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, 0, {0}, 0, BIT_NOT_PERFORMED};
+struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, 0, {0}, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 int exec_system_command(const char * parameter, const char* process_to_execute);
@@ -76,6 +75,29 @@ static void try_write_file(char *filename, char *value)
 			ND_printlog(ND_LOG_ERROR, "error writing file: %s\n", filename);
 	}
 	safe_close(fd);
+}
+
+static void check_rtc_progress(char *filebufferl, size_t size_filebufferl)
+{
+       char rtc_raw_value[RTC_DATA_LEN] = {0};
+       int time_now = 0;
+       if (str2int(&latest_bittest.store_rtc_time_data, filebufferl, MAX_ALLOWED_TRAILING_SPACES, size_filebufferl) != STR2INT_SUCCESS)
+               return;
+       sleep(2);
+       ND_printlog(ND_LOG_INFO, "testing if RTC time has progressed\n");
+       if (read_file_data(rtc_time_path, rtc_raw_value, sizeof(rtc_raw_value) / sizeof(char)))
+                        goto handler_timer_failedb;
+       if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
+                        goto handler_timer_failedb;
+       if (time_now  > latest_bittest.store_rtc_time_data)
+               latest_bittest.rtc_functional_status = PASSED;
+       else
+               latest_bittest.rtc_functional_status = FAILED;
+
+       return;
+handler_timer_failedb:
+        latest_bittest.rtc_functional_status = PASSED;
+
 }
 
 /** @brief function called when timer expires
@@ -583,9 +605,10 @@ void i2c_communications_tests()
 	latest_bittest.i2c_ioexpender_status = check_i2c_validity(i2c2_path, i2c_ioexpender_status_address, i2c_ioexpender_status_register);
 }
 
+uint8_t bittest_performed = 0;
 /** @brief perform full bittest
  */
-uint8_t bittest_init_full(uint8_t update_status)
+uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 {
 	char return_reply[REPLY_STRING_LENGTH] = {0};
 	char *ptr;
@@ -596,7 +619,10 @@ uint8_t bittest_init_full(uint8_t update_status)
 	int battery_value = 0, bit_result = 0;
 	char bit_resultstr[REPLY_STRING_LENGTH] = {0};
 	//initially assume all tests failed
-	init_latest_bit_results();
+       if (!bittest_performed) {
+               init_latest_bit_results();
+               bittest_performed = 1;
+       }
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	i2c_communications_tests();
 	if (!(read_file_data(ble_result_path, filebuffer, SHORT_BUFFER_LEN))) {
@@ -609,8 +635,14 @@ uint8_t bittest_init_full(uint8_t update_status)
 			latest_bittest.battery_status = PASSED;
 	}
 
-	if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
-		create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));
+       if (blocking == NON_BLOCKING) {
+               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
+                       create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));
+       } else {
+               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
+                       check_rtc_progress(filebufferl,  sizeof(filebufferl) / sizeof(char));
+
+       }
 
 	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
 		latest_bittest.fw_crc_status = PASSED;
@@ -631,7 +663,6 @@ uint8_t bittest_init_full(uint8_t update_status)
 		bit_result = FAILED;
 	else
 		bit_result = PASSED;
-	ND_printlog(ND_LOG_INFO, "bit_resultstr:%s\n",bit_resultstr);
 	ND_printlog(ND_LOG_INFO, "bit_result:%d\n",bit_result);
 	if (!update_status)
 		return bit_result;
@@ -671,7 +702,7 @@ int main(void)
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
 		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
 	}
-	bittest_init_full(UPDATE_STATUS);
+	bittest_init_full(UPDATE_STATUS, BLOCKING);
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		PRINTE("error, Could not create socket\n");
@@ -709,8 +740,7 @@ int main(void)
 	c = sizeof(struct sockaddr_in);
 	while ((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))) {
 		if (new_socket == -1)
-			latest_bittest.timer_flag = 1;
-		ND_printlog(ND_LOG_INFO, "server Connection accepted\n");
+			ND_printlog(ND_LOG_INFO, "server Connection accepted\n");
 		//Reply to the client
 		pthread_t sniffer_thread;
 		if ((new_sock = malloc(sizeof(int))) == NULL) {
@@ -836,7 +866,7 @@ void *connection_handler(void *socket_desc)
 			if (check_snprintf(snprintf(type, sizeof(type) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(type) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "bittest init type:%s\n", type);
-			bittest_init_full(UPDATE_STATUS);
+			bittest_init_full(UPDATE_STATUS, NON_BLOCKING);
 			if (write(sock , REPLY_ACK , strlen(REPLY_ACK)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "read_bit:bittest")) != NULL) {
@@ -1093,15 +1123,13 @@ end_selection:
 		ND_printlog(ND_LOG_INFO, "server Client disconnected");
 		if (fflush(stdout) == EOF)
 			ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
-	} else if (read_size == -1 && latest_bittest.timer_flag != 1) {
+	} else if (read_size == -1) {
 		ND_printlog(ND_LOG_ERROR, "error, server recv failed");
 	}
 	//Free the socket pointer
 free_socket:
 	free(socket_desc);
-	if (latest_bittest.timer_flag != 1)
-		safe_close(sock);
-	latest_bittest.timer_flag = 0;
+	safe_close(sock);
 	return 0;
 }
 
@@ -1134,7 +1162,7 @@ void *wakeup_handler(void *socket_desc)
         		struct inotify_event *event =(struct inotify_event *) &buffer[i];
 			if (latest_bittest.bit_status == FAILED) 
 				continue;
-			bit_result =  bittest_init_full(UPDATE_STATUS);
+			bit_result =  bittest_init_full(UPDATE_STATUS, BLOCKING);
 			length = 0;
 			ND_printlog(ND_LOG_INFO, "bit result after wakeup:%d\n", bit_result);
 			if (bit_result == FAILED)
