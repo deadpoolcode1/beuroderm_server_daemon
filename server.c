@@ -571,11 +571,17 @@ int exec_system_command(const char * parameter, const char* process_to_execute)
 int main(void)
 {
 	//thread handling detection of suspend to ram \ wakeup by the FW system 
+	server_daemon_kmsg_print("--- server daemon STARTED ---");
+	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
+		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
+	}
+
 	pthread_t wakeup_thread;
 	if (pthread_create(&wakeup_thread , NULL ,  wakeup_handler , (void*) NULL) < 0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
 			return 1;
 	}
+	//pthread_join(wakeup_thread , NULL);
 
 	//thread handling reciving socket connections 
 	pthread_t socket_thread;
@@ -594,10 +600,7 @@ void *socket_handler(void *test)
 	int socket_desc = 0, new_socket = 0, c = 0 , *new_sock = NULL;
 	struct sockaddr_in server , client;
 
-	server_daemon_kmsg_print("--- server daemon STARTED ---");
-	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
-		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
-	}
+
 	bittest_init_full(UPDATE_STATUS, BLOCKING);
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
@@ -1017,14 +1020,6 @@ free_socket:
 }
 
 
-long current_timestamp() {
-    struct timeval te; 
-    gettimeofday(&te, NULL); // get current time
-    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
-    // printf("milliseconds: %lld\n", milliseconds);
-    return milliseconds;
-}
-
 #define EVENT_SIZE  (sizeof(struct inotify_event))
 #define BUF_LEN     (1024 * (EVENT_SIZE + 16))
 
@@ -1036,20 +1031,21 @@ void *wakeup_handler(void *socket_desc)
 
 	ND_printlog(ND_LOG_INFO, "wakeup handler called OK");
 	fd = inotify_init();
+	wd = inotify_add_watch(fd, "/data/sleep_track", IN_MODIFY | IN_CREATE | IN_DELETE);
 	while (1) {
-		
-		wd = inotify_add_watch(fd, "/data/sleep_track", IN_MODIFY | IN_CREATE | IN_DELETE);
 		length = read(fd, buffer, BUF_LEN);
-    		if  (i< length && (current_timestamp() - bit_time) > 6000) {
-			bit_time = current_timestamp();
+		if  (i< length) {
         		struct inotify_event *event =(struct inotify_event *) &buffer[i];
-			if (latest_bittest.bit_status == FAILED) 
+			if (latest_bittest.bit_status == FAILED) {
+				ND_printlog(ND_LOG_INFO, "latest bit result failed, do not perform another test\n");
 				continue;
+			}
 			bit_result =  bittest_init_full(UPDATE_STATUS, BLOCKING);
 			length = 0;
 			ND_printlog(ND_LOG_INFO, "bit result after wakeup:%d\n", bit_result);
 			if (bit_result == FAILED)
 				exec_system_command(BITTEST_ERROR, "/system/bin/ate_commands.sh");
+			sleep(2);
     		}
 	}
 	return 0;
