@@ -42,5 +42,6 @@ int open_file(char *filename, int flags, mode_t mode);
 int safe_close(int fd);
 void safe_close_stream(FILE *fd);
 int safe_write_file_stream(char *filename, char *data);
+int crc_passed(char *filename, uint8_t type);
 
 #endif /* COMMON_H_ */
