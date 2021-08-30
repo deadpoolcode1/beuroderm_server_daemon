@@ -208,8 +208,8 @@ void delay(unsigned int mseconds)
 
 
 void *connection_handler(void *);
-void *socket_handler(void *test);
-void *wakeup_handler(void *test);
+void *socket_handler(void *);
+void *wakeup_handler(void *);
 
 
 
@@ -581,7 +581,6 @@ int main(void)
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
 			return 1;
 	}
-	//pthread_join(wakeup_thread , NULL);
 
 	//thread handling reciving socket connections 
 	pthread_t socket_thread;
@@ -1019,15 +1018,23 @@ free_socket:
 	return 0;
 }
 
+long long current_timestamp() {
+    struct timeval te; 
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    return milliseconds;
+}
 
 #define EVENT_SIZE  (sizeof(struct inotify_event))
 #define BUF_LEN     (1024 * (EVENT_SIZE + 16))
+#define MIN_TIME_BETWEEN_NOTIFICATIONS 3000
 
 void *wakeup_handler(void *socket_desc)
 {
 	int wd, fd, length, i=0, bit_result;
 	long bit_time = 0;
 	char buffer[BUF_LEN];
+	uint8_t perform_test = 0;
 
 	ND_printlog(ND_LOG_INFO, "wakeup handler called OK");
 	fd = inotify_init();
@@ -1036,6 +1043,15 @@ void *wakeup_handler(void *socket_desc)
 		length = read(fd, buffer, BUF_LEN);
 		if  (i< length) {
         		struct inotify_event *event =(struct inotify_event *) &buffer[i];
+			if (current_timestamp() - MIN_TIME_BETWEEN_NOTIFICATIONS < bit_time) 
+				perform_test = 0;
+			else			
+				perform_test = 1;
+			
+			if (!perform_test)
+				continue; 
+			bit_time = current_timestamp();
+
 			if (latest_bittest.bit_status == FAILED) {
 				ND_printlog(ND_LOG_INFO, "latest bit result failed, do not perform another test\n");
 				continue;
@@ -1045,7 +1061,6 @@ void *wakeup_handler(void *socket_desc)
 			ND_printlog(ND_LOG_INFO, "bit result after wakeup:%d\n", bit_result);
 			if (bit_result == FAILED)
 				exec_system_command(BITTEST_ERROR, "/system/bin/ate_commands.sh");
-			sleep(2);
     		}
 	}
 	return 0;

@@ -18,7 +18,7 @@
 #define MAX_ALLOWED_TRAILING_SPACES 5
 #define error_message_read_file "error reading file"
 #define error_message_fw_error "error, fw unexpected behaviour\n"
-#define PRINTE(...) ND_printlog(ND_LOG_ERROR1, "__VA_ARGS__", strerror(errno));
+#define PRINTE(...) ND_printlog(ND_LOG_ERROR, "__VA_ARGS__", strerror(errno));
 
 enum {
 	STR2INT_SUCCESS,
