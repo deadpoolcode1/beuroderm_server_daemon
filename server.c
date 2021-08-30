@@ -568,14 +568,22 @@ int exec_system_command(const char * parameter, const char* process_to_execute)
 	return 0;
 }
 
+void sig_handler(int signo)
+{
+  if (signo == SIGABRT)
+	ND_printlog(ND_LOG_INFO, "received SIGABRT\n");
+}
+
+
 int main(void)
 {
+	signal(SIGABRT, sig_handler);
 	//thread handling detection of suspend to ram \ wakeup by the FW system 
 	server_daemon_kmsg_print("--- server daemon STARTED ---");
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
 		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
 	}
-
+	signal(SIGABRT, sig_handler);
 	pthread_t wakeup_thread;
 	if (pthread_create(&wakeup_thread , NULL ,  wakeup_handler , (void*) NULL) < 0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
@@ -638,7 +646,7 @@ void *socket_handler(void *test)
 			return (void *)0;
 		}
 		//Now join the thread , so that we dont terminate before the thread
-		pthread_join(sniffer_thread , NULL);
+		//pthread_join(sniffer_thread , NULL);
 		free(new_sock);
 		ND_printlog(ND_LOG_INFO, "server Handler assigned\n");
 	}
@@ -888,6 +896,7 @@ void *connection_handler(void *socket_desc)
 			JSON_Value *root_value = json_value_init_object();
 			JSON_Object *root_object = json_value_get_object(root_value);
 			char *serialized_string = NULL;
+
 			json_object_set_boolean(root_object, "cpu_high_temperature_alarm", alarms.cpu_high_temperature_alarm);
 			json_object_set_boolean(root_object, "cpu_critical_temperature_alarm", alarms.cpu_critical_temperature_alarm);
 			json_object_set_boolean(root_object, "wc_high_temperature_alarm", alarms.wc_high_temperature_alarm);
@@ -926,8 +935,11 @@ void *connection_handler(void *socket_desc)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 				if (write(fd, "POW", strlen("POW")) == -1)
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-				ND_printlog(ND_LOG_INFO, "set watchdog file to POW since state has been read");
-				safe_close(fd);
+				else
+					{
+					ND_printlog(ND_LOG_INFO, "set watchdog file to POW since state has been read");
+					safe_close(fd);
+					}
 			}
 		} else if ((ptr = strstr(client_message, "switch_apk")) != NULL) {
 			//example: switch_apk=com.neuroderm.ct_app
@@ -962,10 +974,12 @@ void *connection_handler(void *socket_desc)
 		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			property_get("sys.boot_completed", returnMsg, "0");
-			returnMsg[1] = '\0';
-			if (send(sock , returnMsg , 2, 0) == -1)
-				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			else {
+				property_get("sys.boot_completed", returnMsg, "0");
+				returnMsg[1] = '\0';
+				if (send(sock , returnMsg , 2, 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			}
 		} else if ((ptr = strstr(client_message, "write_command:device_charger")) != NULL) {
 			//example: write_command:device_charger=1
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
@@ -1036,7 +1050,7 @@ void *wakeup_handler(void *socket_desc)
 	char buffer[BUF_LEN];
 	uint8_t perform_test = 0;
 
-	ND_printlog(ND_LOG_INFO, "wakeup handler called OK");
+	ND_printlog(ND_LOG_INFO, "mywakeup handler called OK");
 	fd = inotify_init();
 	wd = inotify_add_watch(fd, "/data/sleep_track", IN_MODIFY | IN_CREATE | IN_DELETE);
 	while (1) {
