@@ -44,4 +44,11 @@ void safe_close_stream(FILE *fd);
 int safe_write_file_stream(char *filename, char *data);
 int crc_passed(char *filename, uint8_t type);
 
+#define FREE(p) \
+do \
+{ \
+  free(p); \
+  p = NULL; \
+} \
+while(0)
 #endif /* COMMON_H_ */

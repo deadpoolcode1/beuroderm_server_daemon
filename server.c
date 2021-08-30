@@ -24,6 +24,7 @@
 #include <cutils/klog.h>
 #include <ND_LogLibrary.h>
 #include <cutils/properties.h>
+#include  <setjmp.h>
 #include "inih/ini.h"
 #include "parson/parson.h"
 #include "i2c.h"
@@ -244,14 +245,14 @@ int read_file_data(char *filename, char *buffer, size_t buffer_size)
 		goto read_file_data_error;
 	if (check_snprintf(snprintf(buffer, buffer_size, "%s", tmp_buffer), buffer_size))
 		goto read_file_data_error;
-	free (tmp_buffer);
+	FREE (tmp_buffer);
 	return 0;
 
 read_file_data_error:
 	ND_printlog(ND_LOG_ERROR, "Error, failed reading file %s, %s", filename, strerror(errno));
 	if (fptr != NULL)
 		safe_close_stream(fptr);
-	free (tmp_buffer);
+	FREE (tmp_buffer);
 	return -1;
 }
 
@@ -277,14 +278,14 @@ int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
 	// make sure we close the filewhen we're
 	// finished
 	safe_close_stream(fptr);
-	free (tmp_buffer);
+	FREE (tmp_buffer);
 	return 0;
 
 read_config_file_data_error:
 	ND_printlog(ND_LOG_ERROR, "Error, failed reading config file %s, %s", filename, strerror(errno));
 	if (fptr != NULL)
 		safe_close_stream(fptr);
-	free(tmp_buffer);
+	FREE(tmp_buffer);
 	return -1;
 }
 
@@ -568,6 +569,14 @@ int exec_system_command(const char * parameter, const char* process_to_execute)
 	return 0;
 }
 
+
+
+void sig_handler(int signo)
+{
+	if (signo == SIGABRT)
+		ND_openlog("SIGABRT", ND_LOG_ERROR);
+}
+
 int main(void)
 {
 	//thread handling detection of suspend to ram \ wakeup by the FW system 
@@ -575,6 +584,7 @@ int main(void)
 	if (ND_openlog("server_daemon", ND_LOG_DEBUG) != 0) {
 		server_daemon_kmsg_print("Error calling ND_openlog. Cannot log to file");
 	}
+	signal(SIGABRT, sig_handler);
 
 	pthread_t wakeup_thread;
 	if (pthread_create(&wakeup_thread , NULL ,  wakeup_handler , (void*) NULL) < 0) {
@@ -598,9 +608,8 @@ void *socket_handler(void *test)
 {
 	int socket_desc = 0, new_socket = 0, c = 0 , *new_sock = NULL;
 	struct sockaddr_in server , client;
-
-
 	bittest_init_full(UPDATE_STATUS, BLOCKING);
+
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		PRINTE("error, Could not create socket\n");
@@ -629,7 +638,7 @@ void *socket_handler(void *test)
 		//Reply to the client
 		pthread_t sniffer_thread;
 		if ((new_sock = malloc(sizeof(int))) == NULL) {
-			free(new_sock);
+			FREE(new_sock);
 			PRINTE ("error, Unable to allocate buffer");
 		}
 		*new_sock = new_socket;
@@ -639,7 +648,7 @@ void *socket_handler(void *test)
 		}
 		//Now join the thread , so that we dont terminate before the thread
 		pthread_join(sniffer_thread , NULL);
-		free(new_sock);
+		FREE(new_sock);
 		ND_printlog(ND_LOG_INFO, "server Handler assigned\n");
 	}
 
@@ -962,8 +971,12 @@ void *connection_handler(void *socket_desc)
 		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			returnMsg[0] = '\0';
 			property_get("sys.boot_completed", returnMsg, "0");
+			if (returnMsg[0] != '1')
+				returnMsg[0] = '0';
 			returnMsg[1] = '\0';
+			ND_printlog(ND_LOG_INFO, "sys.boot_completed:%s\n", returnMsg);
 			if (send(sock , returnMsg , 2, 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "write_command:device_charger")) != NULL) {
@@ -1013,7 +1026,7 @@ end_selection:
 	}
 	//Free the socket pointer
 free_socket:
-	free(socket_desc);
+	FREE(socket_desc);
 	safe_close(sock);
 	return 0;
 }
@@ -1034,7 +1047,6 @@ void *wakeup_handler(void *socket_desc)
 	int wd, fd, length, i=0, bit_result;
 	long bit_time = 0;
 	char buffer[BUF_LEN];
-	uint8_t perform_test = 0;
 
 	ND_printlog(ND_LOG_INFO, "wakeup handler called OK");
 	fd = inotify_init();
@@ -1044,12 +1056,8 @@ void *wakeup_handler(void *socket_desc)
 		if  (i< length) {
         		struct inotify_event *event =(struct inotify_event *) &buffer[i];
 			if (current_timestamp() - MIN_TIME_BETWEEN_NOTIFICATIONS < bit_time) 
-				perform_test = 0;
-			else			
-				perform_test = 1;
-			
-			if (!perform_test)
-				continue; 
+				continue;
+
 			bit_time = current_timestamp();
 
 			if (latest_bittest.bit_status == FAILED) {
