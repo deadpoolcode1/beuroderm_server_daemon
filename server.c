@@ -594,11 +594,13 @@ int main(void)
 
 	//thread handling reciving socket connections 
 	pthread_t socket_thread;
+	while (1) {
 	if (pthread_create(&socket_thread , NULL ,  socket_handler , (void*) NULL) < 0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
 			return 1;
 	}
 	pthread_join(socket_thread , NULL);
+	}
 	return 0;
 }
 
@@ -608,7 +610,7 @@ void *socket_handler(void *test)
 {
 	int socket_desc = 0, new_socket = 0, c = 0 , *new_sock = NULL;
 	struct sockaddr_in server , client;
-	bittest_init_full(UPDATE_STATUS, BLOCKING);
+	//bittest_init_full(UPDATE_STATUS, BLOCKING);
 
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
@@ -630,6 +632,7 @@ void *socket_handler(void *test)
 		PRINTE("error, can't listen to port\n");
 	}
 	//Accept and incoming connection
+
 	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
 	while ((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))) {
@@ -1042,6 +1045,7 @@ long long current_timestamp() {
 #define BUF_LEN     (1024 * (EVENT_SIZE + 16))
 #define MIN_TIME_BETWEEN_NOTIFICATIONS 3000
 
+
 void *wakeup_handler(void *socket_desc)
 {
 	int wd, fd, length, i=0, bit_result;
@@ -1049,6 +1053,7 @@ void *wakeup_handler(void *socket_desc)
 	char buffer[BUF_LEN];
 
 	ND_printlog(ND_LOG_INFO, "wakeup handler called OK");
+	bittest_init_full(UPDATE_STATUS, BLOCKING);
 	fd = inotify_init();
 	wd = inotify_add_watch(fd, "/data/sleep_track", IN_MODIFY | IN_CREATE | IN_DELETE);
 	while (1) {
