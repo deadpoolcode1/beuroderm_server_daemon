@@ -490,9 +490,11 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	char *ptr;
 	time_t t = time(NULL);
 	struct tm * p = localtime(&t);
+	char filebufferv[SHORT_BUFFER_LEN] = {0};
 	char filebuffer[SHORT_BUFFER_LEN] = {0};
 	char filebufferl[RTC_DATA_LEN] = {0};
 	int battery_value = 0, bit_result = 0;
+	long battery_voltage = 0;
 	char bit_resultstr[REPLY_STRING_LENGTH] = {0};
 	//initially assume all tests failed
        //if (!bittest_performed) {
@@ -508,7 +510,15 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	}
 	if (!(read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))) {
 		if ((str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) == STR2INT_SUCCESS) && (battery_value > 0))
-			latest_bittest.battery_status = PASSED;
+		{
+			//seems like battary exists, varify existance by checking ,avarage measured voltage is above minimal voltage
+			if (!(read_file_data(battery_voltage_path, filebufferv, SHORT_BUFFER_LEN))) {
+				parse_long(filebufferv, &battery_voltage);
+				ND_printlog(ND_LOG_INFO, "battery_voltage: %lu\n", battery_voltage);
+				if (battery_voltage > minimium_valid_battery_voltage)
+					latest_bittest.battery_status = PASSED;
+			}	
+		}
 	}
 
        if (blocking == NON_BLOCKING) {

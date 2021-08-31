@@ -90,6 +90,21 @@ exit_str2int:
 	return ret;
 }
 
+
+bool parse_long(const char *str, long *val)
+{
+    char *temp;
+    bool rc = true;
+    errno = 0;
+    *val = strtol(str, &temp, 0);
+
+    if (temp == str || *temp != '\0' ||
+        ((*val == LONG_MIN || *val == LONG_MAX) && errno == ERANGE))
+        rc = false;
+
+    return rc;
+}
+
 /** @brief removes number of chars from beginning of string
  */
 void chop_string(char *str, size_t n)

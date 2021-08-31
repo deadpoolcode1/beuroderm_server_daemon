@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #ifndef C_COMPILE
 #include <ND_LogLibrary.h>
 #endif
@@ -43,6 +44,7 @@ int safe_close(int fd);
 void safe_close_stream(FILE *fd);
 int safe_write_file_stream(char *filename, char *data);
 int crc_passed(char *filename, uint8_t type);
+bool parse_long(const char *str, long *val);
 
 #define FREE(p) \
 do \

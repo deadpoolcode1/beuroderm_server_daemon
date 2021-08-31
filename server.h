@@ -33,6 +33,8 @@
 #define i2c2_path "/dev/i2c-2"
 #define rtc_time_path "/sys/class/rtc/rtc0/since_epoch"
 #define battery_exists_path "/sys/class/power_supply/battery/present"
+#define battery_voltage_path "/sys/class/power_supply/battery/voltage_avg"
+#define minimium_valid_battery_voltage 2400000
 #define ble_result_path "/data/bt_result"
 //i2c0_path
 #define i2c_pmic_status_address 0x36
