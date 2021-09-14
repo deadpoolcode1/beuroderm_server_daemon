@@ -60,7 +60,7 @@ struct bittest_info {
 
 alarms_struct alarms;
 
-struct bittest_info latest_bittest = {FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, FAILED, 0, {0}, BIT_NOT_PERFORMED};
+struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 int exec_system_command(const char * parameter, const char* process_to_execute);
@@ -407,28 +407,6 @@ char * return_current_bit_status(char *update_string)
 	return update_string;
 }
 
-/** @brief initilize bittest results
- */
-void init_latest_bit_results()
-{
-	latest_bittest.apk_crc_status = FAILED;
-	latest_bittest.battery_status = FAILED;
-	latest_bittest.ble_status = FAILED;
-	latest_bittest.fw_crc_status = FAILED;
-	latest_bittest.i2c_cradletempsensor_status = FAILED;
-	latest_bittest.i2c_displaytouchpanel_status = FAILED;
-	latest_bittest.i2c_fuelgauge_status = FAILED;
-	latest_bittest.i2c_ioexpender_status = FAILED;
-	latest_bittest.i2c_max77816dc3_status = FAILED;
-	latest_bittest.i2c_max77818charger_status = FAILED;
-	latest_bittest.i2c_max77818top_status = FAILED;
-	latest_bittest.i2c_pmic_status = FAILED;
-	latest_bittest.i2c_rtc_status = FAILED;
-	latest_bittest.i2c_rtcmemblock0_status = FAILED;
-	latest_bittest.i2c_rtcmemblock1_status = FAILED;
-	latest_bittest.rtc_functional_status = PASSED;
-}
-
 /** @brief create timer, used for entering suspend to RAM mode
  */
 void create_suspend_to_ram_timer()
@@ -496,18 +474,19 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	int battery_value = 0, bit_result = 0;
 	long battery_voltage = 0;
 	char bit_resultstr[REPLY_STRING_LENGTH] = {0};
-	//initially assume all tests failed
-       //if (!bittest_performed) {
-               init_latest_bit_results();
-       //        bittest_performed = 1;
-       //}
+	uint8_t value_to_pass;
+	
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	i2c_communications_tests();
+	value_to_pass = FAILED;
 	if (!(read_file_data(ble_result_path, filebuffer, SHORT_BUFFER_LEN))) {
 		ND_printlog(ND_LOG_INFO, "\nfilebuffer: %s \n", filebuffer);
 		if (strncmp(filebuffer, "pass", 4) == 0)
-			latest_bittest.ble_status = PASSED;
+			value_to_pass = PASSED;
 	}
+	latest_bittest.ble_status = value_to_pass;
+
+	value_to_pass = FAILED;
 	if (!(read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))) {
 		if ((str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) == STR2INT_SUCCESS) && (battery_value > 0))
 		{
@@ -516,10 +495,11 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 				parse_long(filebufferv, &battery_voltage);
 				ND_printlog(ND_LOG_INFO, "battery_voltage: %lu\n", battery_voltage);
 				if (battery_voltage > minimium_valid_battery_voltage)
-					latest_bittest.battery_status = PASSED;
+					value_to_pass = PASSED;
 			}	
 		}
 	}
+	latest_bittest.battery_status = value_to_pass;
 
        if (blocking == NON_BLOCKING) {
                if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
@@ -530,11 +510,15 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 
        }
 
+        value_to_pass = FAILED;
 	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
-		latest_bittest.fw_crc_status = PASSED;
+		value_to_pass = PASSED;
+	latest_bittest.fw_crc_status = value_to_pass;
 
+	value_to_pass = FAILED;
 	if (crc_passed(APK_CONFIG_FILE_PATH, FILE_JSON) == 0)
-		latest_bittest.apk_crc_status = PASSED;
+		value_to_pass = PASSED;
+	latest_bittest.apk_crc_status = value_to_pass;
 
 	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
@@ -653,6 +637,7 @@ void *socket_handler(void *test)
 		if ((new_sock = malloc(sizeof(int))) == NULL) {
 			FREE(new_sock);
 			PRINTE ("error, Unable to allocate buffer");
+			return (void *)0;
 		}
 		*new_sock = new_socket;
 		if (pthread_create(&sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0) {
@@ -1084,6 +1069,10 @@ void *wakeup_handler(void *socket_desc)
 			ND_printlog(ND_LOG_INFO, "bit result after wakeup:%d\n", bit_result);
 			if (bit_result == FAILED)
 				exec_system_command(BITTEST_ERROR, "/system/bin/ate_commands.sh");
+			if (latest_bittest.battery_status == FAILED) {
+				sleep(10);
+				exec_system_command(BATTERY_ERROR, "/system/bin/ate_commands.sh");
+			}
     		}
 	}
 	return 0;

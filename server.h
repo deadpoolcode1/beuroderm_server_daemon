@@ -92,6 +92,8 @@
 #define NUMBER_RETRY_MONITOR 3 
 #define  VAR_COMMAND_REBOOT "0"
 #define  BITTEST_ERROR "600"
+#define  BATTERY_ERROR "542"
+
 
 typedef struct {
 	char* year;
