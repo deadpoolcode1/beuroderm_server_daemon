@@ -20,6 +20,22 @@
 #define error_message_read_file "error reading file"
 #define error_message_fw_error "error, fw unexpected behaviour\n"
 #define PRINTE(...) ND_printlog(ND_LOG_ERROR, "__VA_ARGS__", strerror(errno));
+#define MD5_FILE "/data/md5"
+#define LANGUGE_FILE "/data/lang"
+#define MAX_SYSTEM_COMMAND_LEN 150
+#define MAX_MD5_DATA_LEN 5000
+#define SDCARD_DIR "/data/"
+#define LANGUGE_DIR SDCARD_DIR"NEURODERM/LANGUAGES/"
+#define TEXT_DIR LANGUGE_DIR"TEXT/"
+#define TEXT_DIR_MD5 TEXT_DIR"md5"
+#define VIDEO_DIR LANGUGE_DIR"VIDEO/"
+#define VIDEO_DIR_MD5 VIDEO_DIR"md5"
+#define MD5_SCRIPT "/system/bin/md5_calc.sh"
+#define DELAY_PER_MD5_CALC 300000
+#define REGIMEN_UPDATE_NOTIFICATION_FILE "/data/regedit"
+#define SERIAL_NUMBER_FILE "/data/main_snp"
+#define RECIVED_PINCODE_NOTIFY_API "/data/recivedPinCode"
+#define PINCODE_RESULT_API "/data/pinCode"
 
 enum {
 	STR2INT_SUCCESS,
@@ -45,6 +61,7 @@ void safe_close_stream(FILE *fd);
 int safe_write_file_stream(char *filename, char *data);
 int crc_passed(char *filename, uint8_t type);
 bool parse_long(const char *str, long *val);
+int read_file_data(char *filename, char *buffer, size_t buffer_size);
 
 #define FREE(p) \
 do \

@@ -17,6 +17,8 @@
 #define BIT_BLE "BIT_BLE"
 #define BIT_BATTERY "BIT_BATTERY"
 #define BIT_RTCFUNCTIONAL "BIT_RTCFUNCTIONAL"
+#define BIT_LANGUAGE_FILE "BIT_LANG_FILE"
+#define BIT_LANGUAGE_VIDEO "BIT_LANG_VIDEO"
 #define BIT_FWCRC "BIT_FWCRC"
 #define BIT_APKCRC "BIT_APKCRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
@@ -27,6 +29,8 @@
 #define MAX_FILE_SIZE 10000
 #define CRC_STRING_JSON "\"crc\":\""
 #define CRC_STRING_INI "crc="
+#define HALL_DETECT "/sys/class/switch/hall_detect/state"
+#define HALL_DETECTR "/data/gpiohallreflect"
 //i2c bit test address, paths, registers definition
 
 #define i2c0_path "/dev/i2c-0"
@@ -45,6 +49,9 @@
 #define i2c_max77818top_status_register 0xb0
 #define i2c_max77818charger_status_address 0x18
 #define i2c_max77818charger_status_register 0x00
+#define i2c_max77818charger_ok 0x00
+#define i2c_max77818charger_status_register_detailed 0x01
+
 #define i2c_displaytouchpanel_status_address 0x26
 #define i2c_displaytouchpanel_status_register 0x00
 //i2c2_path
@@ -69,7 +76,6 @@
 #define SHORT_BUFFER_LEN 10
 #define RTC_DATA_LEN 20
 #define FILE_BUFFER_LEN 150
-#define MAX_SYSTEM_COMMAND_LEN 150
 //APK open commands
 #define EXITATEMODE "0"
 #define ENTERATEMODE "1"
@@ -93,7 +99,17 @@
 #define  VAR_COMMAND_REBOOT "0"
 #define  BITTEST_ERROR "600"
 #define  BATTERY_ERROR "542"
-
+#define VAR_COMMAND_5v_OK "564"
+#define VAR_COMMAND_5v_BB_OCP "565"
+#define VAR_COMMAND_5v_BB_OVP "566"
+#define VAR_COMMAND_5v_BB_POKn "567"
+#define VAR_COMMAND_5v_TSHDN "568"
+#define VAR_COMMAND_5v_no_communication "569"
+#define VAR_COMMAND_5v_no_communication "569"
+#define VAR_COMMAND_5v_no_communication "569"
+#define VAR_COMMAND_error_in_languge_files "571"
+#define VAR_COMMAND_error_in_video_files "572"
+#define VAR_COMMAND_error_in_serial_file "573"
 
 typedef struct {
 	char* year;

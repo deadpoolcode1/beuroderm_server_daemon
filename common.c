@@ -90,6 +90,34 @@ exit_str2int:
 	return ret;
 }
 
+/** @brief read file line by line, return only last line
+ */
+int read_file_data(char *filename, char *buffer, size_t buffer_size)
+{
+	FILE *fptr = NULL;
+	char *tmp_buffer = NULL;
+	if ((fptr = fopen(filename, "r")) == NULL)
+		goto read_file_data_error;
+	while (-1 != getline(&tmp_buffer, &buffer_size, fptr)) {
+	}
+	if (fflush(stdout) == EOF)
+		goto read_file_data_error;
+	// make sure we close the filewhen we're
+	// finished
+	if (fclose(fptr) == EOF)
+		goto read_file_data_error;
+	if (check_snprintf(snprintf(buffer, buffer_size, "%s", tmp_buffer), buffer_size))
+		goto read_file_data_error;
+	FREE (tmp_buffer);
+	return 0;
+
+read_file_data_error:
+	ND_printlog(ND_LOG_ERROR, "Error, failed reading file %s, %s", filename, strerror(errno));
+	if (fptr != NULL)
+		safe_close_stream(fptr);
+	FREE (tmp_buffer);
+	return -1;
+}
 
 bool parse_long(const char *str, long *val)
 {
