@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include "sha256/sha-256.h"
 #ifndef C_COMPILE
 #include <ND_LogLibrary.h>
 #endif
@@ -34,8 +35,12 @@
 #define DELAY_PER_MD5_CALC 300000
 #define REGIMEN_UPDATE_NOTIFICATION_FILE "/data/regedit"
 #define SERIAL_NUMBER_FILE "/data/main_snp"
+#define SERIAL_NUMBER_FACTORY "/data/main_sn"
 #define RECIVED_PINCODE_NOTIFY_API "/data/recivedPinCode"
 #define PINCODE_RESULT_API "/data/pinCode"
+#define PINCODE_MAX_LEN 6
+#define SERIAL_NUMBER_VALIDITY_FILE "/data/main_snv"
+#define DEFAULT_SERIAL_NUMBER "0000000000"
 
 enum {
 	STR2INT_SUCCESS,
@@ -62,6 +67,15 @@ int safe_write_file_stream(char *filename, char *data);
 int crc_passed(char *filename, uint8_t type);
 bool parse_long(const char *str, long *val);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
+unsigned short calc_crc(char *buffer, unsigned short length);
+unsigned short calc_crc8(char *data, size_t len);
+bool check_if_file_exists(const char* filename);
+void create_file_if_needed(const char* filename);
+int read_file_data(char *filename, char *buffer, size_t buffer_size);
+void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size);
+void calculate_pincodelen_digits_code(char *result, const buffer, int length);
+char * trim(char * s);
+void calculate_pincode(char* buffer_calculated_valid_pincode_result, const char* buffer_snp, int length);
 
 #define FREE(p) \
 do \
