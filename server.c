@@ -66,7 +66,6 @@ struct bittest_info {
 };
 
 alarms_struct alarms;
-
 struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string, bool print_result);
 
@@ -610,7 +609,6 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		}
 	}
 	latest_bittest.battery_status = value_to_pass;
-
 	//video test
 	value_to_pass = FAILED;
 	if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG))
@@ -1149,19 +1147,14 @@ uint8_t test_serial_number_validity()
 	char serial_number[MAX_SYSTEM_COMMAND_LEN] = {0};
 	char serial_number_crc[MAX_SYSTEM_COMMAND_LEN] = {0};
 	int i = 0;
-	unsigned short length, crc_calculated, crc_expected_number = 0;
-	
-	
+	unsigned short length, crc_calculated, crc_expected_number = 0;	
 	read_file_data_no_space(SERIAL_NUMBER_VALIDITY_FILE, serial_number_crc, MAX_SYSTEM_COMMAND_LEN);
 	if (str2int(&crc_expected_number,serial_number_crc, MAX_ALLOWED_TRAILING_SPACES, STD_FILE_LENGTH) != STR2INT_SUCCESS)
 		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 
-
-
 	read_file_data_no_space(SERIAL_NUMBER_FACTORY, serial_number, MAX_SYSTEM_COMMAND_LEN);
 	length = strlen(serial_number);
 	crc_calculated = calc_crc(serial_number, length);
-
 	if (test_if_use_default_key()) {
 		ND_printlog(ND_LOG_INFO, "config file use_default_key=1, therefore serial number validity test pass\n");
 		return PASSED;
@@ -1184,6 +1177,7 @@ uint8_t test_serial_number_validity()
 		ND_printlog(ND_LOG_INFO, "serial number invalid, can not be all '0':\n");
 		return FAILED;
 	}
+
 
 	ND_printlog(ND_LOG_INFO, "serial number crc expected:%d\n", crc_expected_number);
 	ND_printlog(ND_LOG_INFO, "serial number crc calculated:%d\n", crc_calculated);

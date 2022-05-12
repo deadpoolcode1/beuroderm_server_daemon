@@ -38,6 +38,7 @@ int main(void)
 {
     //create video dir MD5 
     create_md5_file(VIDEO_DIR, VIDEO_DIR_MD5);
+    usleep(DELAY_PER_MD5_CALC);
     //create text dir MD5 
     create_md5_file(TEXT_DIR, TEXT_DIR_MD5);
     return(0);
@@ -76,6 +77,8 @@ void create_md5_file(char *dir_name, char *md5_dir_name)
 	    read_file_data(MD5_FILE, md5_calculated, MAX_SYSTEM_COMMAND_LEN);
 	    ND_printlog(ND_LOG_INFO, "md5 result: %s\n", md5_calculated);
             sprintf(files_md5_data+strlen(files_md5_data),"%s=%s",dir->d_name,md5_calculated);
+	    ND_printlog(ND_LOG_INFO, "directory calculated:%s\n",dir_name);
+	    ND_printlog(ND_LOG_INFO, "md5::%s\n",md5_calculated);
         }
         closedir(d);
 	ND_printlog(ND_LOG_INFO, "files_md5_data:%s\n",files_md5_data);
