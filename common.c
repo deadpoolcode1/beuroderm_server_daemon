@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/file.h>
+#include "sha256/sha-256.h"
 #ifndef C_COMPILE
 #include <ND_LogLibrary.h>
 #endif
@@ -276,7 +277,38 @@ extract_crc_from_file_error:
 	return -1;
 }
 
+/** @brief CRC ITT16 calculation
+ */
 
+unsigned short calc_crc(char *full_buffer, unsigned short length)
+{
+	unsigned short crc_calculated = 0xFFFF;
+	unsigned char x = 0;
+	char *data_p = full_buffer;
+
+	while (length--) {
+		x = crc_calculated >> 8 ^ *data_p++;
+		x ^= x >> 4;
+		crc_calculated = (crc_calculated << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x << 5)) ^ ((unsigned short)x);
+	}
+	return crc_calculated;
+}
+
+unsigned short calc_crc8(char *data, size_t len)
+{
+    uint8_t crc = 0xff;
+    size_t i, j;
+    for (i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (j = 0; j < 8; j++) {
+            if ((crc & 0x80) != 0)
+                crc = (uint8_t)((crc << 1) ^ 0x31);
+            else
+                crc <<= 1;
+        }
+    }
+    return crc;
+}
 
 /** @brief check if CRC passed, read CRC from file and compare to the calculated value
  */
@@ -285,9 +317,7 @@ int crc_passed(char *filename, uint8_t type)
 	size_t buffer_size = STD_FILE_LENGTH;
 	char *buffer = NULL, *buffer_filtered = NULL;
 	char full_buffer[MAX_FILE_SIZE] = {0};
-	unsigned char x = 0;
 	unsigned short crc_calculated = 0xFFFF, length = 0;
-	char *data_p = full_buffer;
 	long crc_expected = 0;
 
 	// open the file for reading
@@ -317,11 +347,7 @@ int crc_passed(char *filename, uint8_t type)
 		ND_printlog(ND_LOG_ERROR, "Error,flushing stream %s", strerror(errno));
 	//calculate CRC
 	length = strlen(full_buffer);
-	while (length--) {
-		x = crc_calculated >> 8 ^ *data_p++;
-		x ^= x >> 4;
-		crc_calculated = (crc_calculated << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x << 5)) ^ ((unsigned short)x);
-	}
+	crc_calculated = calc_crc(full_buffer, length);	
 	ND_printlog(ND_LOG_INFO, "\n%s crc_calculated result: %d\n", filename, crc_calculated);
 //now read expected CRC
 	free(buffer);
@@ -334,3 +360,78 @@ exit_crc_passed:
 	PRINTE("error, Unable to allocate buffer, exiting");
 	return -1;
 }
+
+bool check_if_file_exists(const char* filename)
+{
+    struct stat buffer;
+    int exist = stat(filename,&buffer);
+    return (exist == 0)? true : false; 
+}
+
+
+void create_file_if_needed(const char* filename)
+{
+	FILE * fPtr;
+	fPtr = fopen(filename, "w");
+    	if(fPtr == NULL)
+    	{
+       		PRINTE("error, Unable to create file, exiting");
+        	return;
+    	}
+
+	fclose(fPtr);
+}
+
+
+/** @brief read file data, remove spaces
+ */
+void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
+{
+	char *pos = NULL;
+
+	if (read_file_data(filename, buffer, buffer_size)) {
+		if (check_snprintf(snprintf(buffer, buffer_size, "%s", error_message_read_file), buffer_size))
+			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+		return;
+	}
+	trim(buffer);
+	if ((pos = strchr(buffer, '\n')) != NULL)
+		* pos = '\0';
+}
+
+
+/** @brief calculate pincode
+ */
+void calculate_pincode(char* buffer_calculated_valid_pincode_result, const char* buffer_snp, int length)
+{
+	uint8_t hash[32];
+
+	calc_sha_256(hash, buffer_snp, length);
+	calculate_pincodelen_digits_code(buffer_calculated_valid_pincode_result, hash, 32);
+	ND_printlog(ND_LOG_INFO, "%d digits crc is:%s\n", PINCODE_MAX_LEN, buffer_calculated_valid_pincode_result);
+}
+
+void calculate_pincodelen_digits_code(char *result, const buffer, int length)
+{
+	unsigned short crc_calculated_16_itt, crc_calculated_8;
+	crc_calculated_16_itt = calc_crc(buffer, length);
+	crc_calculated_8 = calc_crc8(buffer, length);
+	sprintf(result, "%d%d", crc_calculated_16_itt, crc_calculated_8);
+	result[PINCODE_MAX_LEN] = '\0';
+	while (strlen(result) < PINCODE_MAX_LEN)
+		strcat(result, "0");
+}
+
+
+/** @brief remove space charecters from string
+ */
+char * trim(char * s)
+{
+	int l = strlen(s);
+
+	while (isspace(s[l - 1])) --l;
+	while (* s && isspace(* s)) ++s, --l;
+
+	return strndup(s, l);
+}
+

@@ -68,11 +68,13 @@ void create_md5_file(char *dir_name, char *md5_dir_name)
 		continue;
 	    ND_printlog(ND_LOG_INFO, "%s\n", dir->d_name);
 	    sprintf(command,"%s%s",dir_name, dir->d_name);
-	    exec_system_command(command, md5_dir_name);//write md5 to temp file
+	    ND_printlog(ND_LOG_INFO, "md5 calculate for: %s\n", command);
+	    exec_system_command(command, MD5_SCRIPT);//write md5 to temp file
 	    usleep(DELAY_PER_MD5_CALC);
 	    //read temp file for md5
 	    md5_calculated[0] = '\0';
 	    read_file_data(MD5_FILE, md5_calculated, MAX_SYSTEM_COMMAND_LEN);
+	    ND_printlog(ND_LOG_INFO, "md5 result: %s\n", md5_calculated);
             sprintf(files_md5_data+strlen(files_md5_data),"%s=%s",dir->d_name,md5_calculated);
         }
         closedir(d);

@@ -33,6 +33,7 @@
 #include "server_log.h"
 #include "common.h"
 
+
 timer_t timer_id_rtc_functional;
 timer_t timer_id_suspend_to_ram;
 
@@ -52,10 +53,13 @@ struct bittest_info {
 	uint8_t ble_status;
 	uint8_t battery_status;
 	uint8_t rtc_functional_status;
-	uint8_t language_file_status;
-	uint8_t language_video_status;
 	uint8_t fw_crc_status;
 	uint8_t apk_crc_status;
+	uint8_t language_file_status;
+	uint8_t language_video_status;
+	uint8_t serial_number_status;
+	uint8_t language_conf_status;
+	uint8_t u14_functionality;
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
 	uint8_t bit_status;
@@ -63,10 +67,11 @@ struct bittest_info {
 
 alarms_struct alarms;
 
-struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED};
-char * return_current_bit_status(char *update_string);
-int read_file_data(char *filename, char *buffer, size_t buffer_size);
+struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED};
+char * return_current_bit_status(char *update_string, bool print_result);
+
 int exec_system_command(const char * parameter, const char* process_to_execute);
+uint8_t test_serial_number_validity();
 
 
 static void try_write_file(char *filename, char *value)
@@ -142,7 +147,7 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 		return;
 	}
 
-	if ((return_current_bit_status(return_reply)) == NULL)
+	if ((return_current_bit_status(return_reply, true)) == NULL)
 		ND_printlog(ND_LOG_ERROR, "error, bit test failed to perform\n");
 
 	return;
@@ -215,20 +220,8 @@ void *connection_handler(void *);
 void *socket_handler(void *);
 void *wakeup_handler(void *);
 void *language_handler(void *);
-void *regimen_handler(void *);
 void *pincode_handler(void *);
 
-/** @brief remove space charecters from string
- */
-char * trim(char * s)
-{
-	int l = strlen(s);
-
-	while (isspace(s[l - 1])) --l;
-	while (* s && isspace(* s)) ++s, --l;
-
-	return strndup(s, l);
-}
 
 
 /** @brief read config data to buffer
@@ -263,21 +256,7 @@ read_config_file_data_error:
 	return -1;
 }
 
-/** @brief read file data, remove spaces
- */
-void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
-{
-	char *pos = NULL;
 
-	if (read_file_data(filename, buffer, buffer_size)) {
-		if (check_snprintf(snprintf(buffer, buffer_size, "%s", error_message_read_file), buffer_size))
-			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		return;
-	}
-	trim(buffer);
-	if ((pos = strchr(buffer, '\n')) != NULL)
-		* pos = '\0';
-}
 
 /** @brief check if file exists
  */
@@ -315,19 +294,37 @@ failed_reading:
 	return read_data;
 }
 
+
+/** @brief checks if read data from I2C is vald, in Neuroderm implementation, 0XFF is invalid value
+ */
+uint8_t check_i2c_validity_basic(char *path, uint8_t m_address, uint8_t m_register)
+{
+	return read_i2c(path, m_address, m_register) == 0xff ? FAILED : PASSED;
+}
+
 /** @brief checks if read data from I2C is vald, in Neuroderm implementation, 0XFF is invalid value
  */
 uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
 {
-
-	return read_i2c(path, m_address, m_register) == 0xff ? FAILED : PASSED;
+	uint8_t res = FAILED;
+	uint8_t i = 0;
+	for (; i < I2C_MAX_RETRY; i++)
+	{	
+		res = check_i2c_validity_basic(path, m_address, m_register);
+		if (res == PASSED)
+			break;
+		else
+			ND_printlog(ND_LOG_ERROR, "error, i2c bit related read failed\n");	
+		usleep(USEC_I2C_RETRY);
+	}
+	return res;
 }
 
 
 
 /** @brief return current BIT status, only read existing status not performing test
  */
-char * return_current_bit_status(char *update_string)
+char * return_current_bit_status(char *update_string, bool print_result)
 {
 	JSON_Value *root_value;
 	JSON_Object *root_object;
@@ -374,11 +371,18 @@ char * return_current_bit_status(char *update_string)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_boolean(root_object, BIT_LANGUAGE_VIDEO, latest_bittest.language_video_status)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_SERIAL_NUMBER, latest_bittest.serial_number_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_LANG_CONF, latest_bittest.language_conf_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_U14_FUNCTIONALITY, latest_bittest.u14_functionality)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((update_string = json_serialize_to_string_pretty(root_value)) == NULL)
 		ND_printlog(ND_LOG_ERROR, "error, JSON serilize to string failed\n");
-	ND_printlog(ND_LOG_INFO, "bit test: %s\n", update_string);
+	if (print_result)	
+		ND_printlog(ND_LOG_INFO, "bit test: %s\n", update_string);
 	json_value_free(root_value);
 	if (update_string == NULL)
 		PRINTE("error, failed reading bit status\n");
@@ -432,7 +436,7 @@ void i2c_communications_tests()
 	latest_bittest.i2c_pmic_status = check_i2c_validity(i2c0_path, i2c_pmic_status_address, i2c_pmic_status_register);
 	latest_bittest.i2c_fuelgauge_status = check_i2c_validity(i2c0_path, i2c_fuelgauge_status_address, i2c_fuelgauge_status_register);
 	latest_bittest.i2c_max77818top_status = check_i2c_validity(i2c0_path, i2c_max77818top_status_address, i2c_max77818top_status_register);
-	latest_bittest.i2c_max77818charger_status = check_i2c_validity(i2c0_path, i2c_max77818charger_status_address, i2c_max77818charger_status_register) && i2c_max77818charger_status_no_alarms();
+	latest_bittest.i2c_max77818charger_status = check_i2c_validity(i2c0_path, i2c_max77818charger_status_address, i2c_max77818charger_status_register);
 	latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c0_path, i2c_displaytouchpanel_status_address, i2c_displaytouchpanel_status_register);
 	latest_bittest.i2c_max77816dc3_status = check_i2c_validity(i2c2_path, i2c_max77816dc3_status_address, i2c_max77816dc3_status_register);
 	latest_bittest.i2c_rtc_status = check_i2c_validity(i2c2_path, i2c_rtc_status_address, i2c_rtc_status_register);
@@ -457,7 +461,7 @@ uint8_t compare_md5(const char* md5_string_search, const char* saved_file)
 
 /** @brief perform languge test
  */
-uint8_t test_languge(char *test_dir, char *dir_md5_file)
+uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_test)
 {
 	DIR *d;
 	struct dirent *dir;
@@ -466,10 +470,16 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file)
 	char command[MAX_SYSTEM_COMMAND_LEN] = {0};
 	char md5_string_search[MAX_SYSTEM_COMMAND_LEN] = {0};
 	uint8_t reply = FAILED;
-	read_file_data_no_space(LANGUGE_FILE, lang_type, MAX_SYSTEM_COMMAND_LEN);
-	if (strlen (lang_type) < 2) {
-		ND_printlog(ND_LOG_INFO, "languge not selected yet, pass test");
-		return PASSED;
+
+	ND_printlog(ND_LOG_INFO, "test_dir: %s dir_md5_file:%s lang_to_test:%s\n", test_dir, dir_md5_file, lang_to_test);
+	if (strcmp(lang_to_test, NO_LANG) == 0) {
+		read_file_data_no_space(LANGUGE_FILE, lang_type, MAX_SYSTEM_COMMAND_LEN);
+		if (strlen (lang_type) < 2) {
+			ND_printlog(ND_LOG_INFO, "languge not selected yet, pass test");
+			return PASSED;
+		}
+	} else {
+		sprintf(lang_type,"%s", lang_to_test);
 	}
 	
 	d = opendir(SDCARD_DIR);
@@ -521,6 +531,7 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	long battery_voltage = 0;
 	char bit_resultstr[REPLY_STRING_LENGTH] = {0};
 	uint8_t value_to_pass;
+	char tmp[2] = {0};
 	
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	i2c_communications_tests();
@@ -532,6 +543,59 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	}
 	latest_bittest.ble_status = value_to_pass;
 
+	//first pass battery test, in order to exclude from result that effects system sleep time
+	latest_bittest.battery_status = PASSED;
+	//languge test
+	value_to_pass = FAILED;
+	if (test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG))
+		value_to_pass = PASSED;
+	latest_bittest.language_file_status = value_to_pass;
+	//languge conf status
+	value_to_pass = FAILED;
+	if (test_languge(TEXT_DIR, TEXT_DIR_MD5, LANG_CONF_FILE))
+		value_to_pass = PASSED;
+	latest_bittest.language_conf_status = value_to_pass;
+
+	//U14 finctionality
+	latest_bittest.u14_functionality = i2c_max77818charger_status_no_alarms();
+
+       	if (blocking == NON_BLOCKING) {
+               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
+                       create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));
+       	} else {
+               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
+                       check_rtc_progress(filebufferl,  sizeof(filebufferl) / sizeof(char));
+       	}
+
+        value_to_pass = FAILED;
+	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
+		value_to_pass = PASSED;
+	latest_bittest.fw_crc_status = value_to_pass;
+
+	value_to_pass = FAILED;
+	if (crc_passed(APK_CONFIG_FILE_PATH, FILE_JSON) == 0)
+		value_to_pass = PASSED;
+	latest_bittest.apk_crc_status = value_to_pass;
+
+	value_to_pass = FAILED;
+	value_to_pass = test_serial_number_validity();
+	latest_bittest.serial_number_status = value_to_pass;
+
+	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
+		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
+
+	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
+
+//check without battery existance bit and without video files bit, this effects sleep time 
+	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr, false));
+	ptr = strstr(bit_resultstr, "false");
+	if (ptr!= NULL)
+		bit_result = FAILED;
+	else
+		bit_result = PASSED;
+	sprintf(tmp, "%d", bit_result);
+	try_write_file(LATEST_BIT_STATUS, tmp);
+//perform battery test
 	value_to_pass = FAILED;
 	if (!(read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))) {
 		if ((str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) == STR2INT_SUCCESS) && (battery_value > 0))
@@ -546,45 +610,14 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		}
 	}
 	latest_bittest.battery_status = value_to_pass;
-	//languge test
-	value_to_pass = FAILED;
-	latest_bittest.language_file_status = value_to_pass;
-	if (test_languge(TEXT_DIR, TEXT_DIR_MD5))
-		value_to_pass = PASSED;
-	latest_bittest.language_file_status = value_to_pass;
+
 	//video test
 	value_to_pass = FAILED;
-	latest_bittest.language_video_status = value_to_pass;
-	if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5))
+	if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG))
 		value_to_pass = PASSED;
 	latest_bittest.language_video_status = value_to_pass;
-       	if (blocking == NON_BLOCKING) {
-               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
-                       create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));
-       	} else {
-               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
-                       check_rtc_progress(filebufferl,  sizeof(filebufferl) / sizeof(char));
-
-       	}
-
-        value_to_pass = FAILED;
-	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
-		value_to_pass = PASSED;
-	latest_bittest.fw_crc_status = value_to_pass;
-
-	value_to_pass = FAILED;
-	if (crc_passed(APK_CONFIG_FILE_PATH, FILE_JSON) == 0)
-		value_to_pass = PASSED;
-	latest_bittest.apk_crc_status = value_to_pass;
-
-	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
-		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
-
-	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
-
-
-
-	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr));
+//check with all bit tests, including battery test
+	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr, true));
 	ptr = strstr(bit_resultstr, "false");
 	if (ptr!= NULL)
 		bit_result = FAILED;
@@ -595,6 +628,8 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		return bit_result;
 
 	latest_bittest.bit_status = bit_result;
+	sprintf(tmp, "%d", bit_result);
+
 	return latest_bittest.bit_status;
 }
 
@@ -645,12 +680,6 @@ int main(void)
 
 	pthread_t language_thread;
 	if (pthread_create(&language_thread , NULL ,  language_handler , (void*) NULL) < 0) {
-			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
-			return 1;
-	}
-
-	pthread_t regimen_thread;
-	if (pthread_create(&regimen_thread , NULL ,  regimen_handler , (void*) NULL) < 0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
 			return 1;
 	}
@@ -839,7 +868,7 @@ void *connection_handler(void *socket_desc)
 			/*action is bittest_read
 			*/
 			client_message[0] = '\0';
-			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg)), sizeof(returnMsg) / sizeof(char)))
+			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", return_current_bit_status(returnMsg, true)), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (write(sock , returnMsg , strlen(returnMsg)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
@@ -1103,28 +1132,81 @@ free_socket:
 	return 0;
 }
 
+uint8_t test_if_use_default_key()
+{
+	char config_file_data[SOCKET_MESSAGE_MAX_LENGTH] = {0};
+	char *ptr;
+	read_config_file_data(FW_CONFIG_FILE_PATH, config_file_data, SOCKET_MESSAGE_MAX_LENGTH);
+	ptr = strstr(config_file_data, USE_DEFAULT_KEY);
+	return (ptr!= NULL) ? true : false;
+}
+
 /** @brief perform serial nummber validity test
  */
 uint8_t test_serial_number_validity()
 {
-
 	char buffer[MAX_SYSTEM_COMMAND_LEN] = {0};	
-	read_file_data_no_space(SERIAL_NUMBER_FILE, buffer, MAX_SYSTEM_COMMAND_LEN);
-	return (strcmp(buffer,"0000000000") == 0) ?  PASSED :  FAILED;
+	char serial_number[MAX_SYSTEM_COMMAND_LEN] = {0};
+	char serial_number_crc[MAX_SYSTEM_COMMAND_LEN] = {0};
+	int i = 0;
+	unsigned short length, crc_calculated, crc_expected_number = 0;
+	
+	
+	read_file_data_no_space(SERIAL_NUMBER_VALIDITY_FILE, serial_number_crc, MAX_SYSTEM_COMMAND_LEN);
+	if (str2int(&crc_expected_number,serial_number_crc, MAX_ALLOWED_TRAILING_SPACES, STD_FILE_LENGTH) != STR2INT_SUCCESS)
+		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+
+
+
+	read_file_data_no_space(SERIAL_NUMBER_FACTORY, serial_number, MAX_SYSTEM_COMMAND_LEN);
+	length = strlen(serial_number);
+	crc_calculated = calc_crc(serial_number, length);
+
+	if (test_if_use_default_key()) {
+		ND_printlog(ND_LOG_INFO, "config file use_default_key=1, therefore serial number validity test pass\n");
+		return PASSED;
+	}
+
+	//else varify crc calculated file matches factory programmed serial file
+	if (length < MIN_VALID_FACTORY_SN_LEN) {
+		ND_printlog(ND_LOG_INFO, "serial number length : %d, is lower then min allowed: %d\n", length, MIN_VALID_FACTORY_SN_LEN);
+		return FAILED;
+	}
+	//varify not all "0"
+	for (; i < length; i++)
+	{
+		if (serial_number[i] != '0')
+			i = length + 1;
+		
+	}
+	
+	if (i <= length)  {
+		ND_printlog(ND_LOG_INFO, "serial number invalid, can not be all '0':\n");
+		return FAILED;
+	}
+
+	ND_printlog(ND_LOG_INFO, "serial number crc expected:%d\n", crc_expected_number);
+	ND_printlog(ND_LOG_INFO, "serial number crc calculated:%d\n", crc_calculated);
+
+	return (crc_calculated == crc_expected_number) ?  PASSED :  FAILED;
 }
+
+
 
 /** @brief perform pincode validity test
  */
 void test_pincode_validity()
 {
 
-	char buffer_sn[MAX_SYSTEM_COMMAND_LEN] = {0};	
-	char buffer_pincode[MAX_SYSTEM_COMMAND_LEN] = {0};	
-	read_file_data_no_space(SERIAL_NUMBER_FILE, buffer_sn, MAX_SYSTEM_COMMAND_LEN);
+	char buffer_snp[MAX_SYSTEM_COMMAND_LEN] = {0};	
+	char buffer_pincode[MAX_SYSTEM_COMMAND_LEN] = {0};
+	char buffer_calculated_valid_pincode_result[MAX_SYSTEM_COMMAND_LEN] = {0};	
+	read_file_data_no_space(SERIAL_NUMBER_FILE, buffer_snp, MAX_SYSTEM_COMMAND_LEN);
 	read_file_data_no_space(RECIVED_PINCODE_NOTIFY_API, buffer_pincode, MAX_SYSTEM_COMMAND_LEN);
-	ND_printlog(ND_LOG_INFO, "buffer_sn:%s\n", buffer_sn);
-	ND_printlog(ND_LOG_INFO, "buffer_pincode:%s\n", buffer_pincode);	
-	if (strcmp(buffer_sn,"0000000000") == 0 && strcmp(buffer_pincode,"291101") == 0)
+	ND_printlog(ND_LOG_INFO, "buffer_snp:%s\n", buffer_snp);
+	ND_printlog(ND_LOG_INFO, "buffer_pincode:%s\n", buffer_pincode);
+	calculate_pincode(buffer_calculated_valid_pincode_result, buffer_snp, strlen(buffer_snp));	
+	if (strcmp(buffer_calculated_valid_pincode_result,buffer_pincode) == 0)
 		try_write_file(PINCODE_RESULT_API, "1");
 	else
 		try_write_file(PINCODE_RESULT_API, "0");
@@ -1198,39 +1280,28 @@ void *language_handler(void *socket_desc)
 
 			bit_time = current_timestamp();
 			ND_printlog(ND_LOG_INFO, "language selected, perform CRC test");
-			if (test_languge(TEXT_DIR, TEXT_DIR_MD5) == FAILED)
+			if (test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG) == FAILED)
 				exec_system_command(VAR_COMMAND_error_in_languge_files, "/system/bin/ate_commands.sh");
 
-			if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5) == FAILED)
+			if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG) == FAILED)
 				exec_system_command(VAR_COMMAND_error_in_video_files, "/system/bin/ate_commands.sh");
 			}
 	}
 	return 0;
 }
 
-void *regimen_handler(void *socket_desc)
+
+void create_sn_pincode()
 {
-	int wd, fd, length, i=0, bit_result;
-	long long  bit_time = 0;
-	char buffer[BUF_LEN];
+	unsigned short length;
+	char buffer[MAX_SYSTEM_COMMAND_LEN] = {0};
+	char sn_buffer[MAX_SYSTEM_COMMAND_LEN] = {0};
 
-	ND_printlog(ND_LOG_INFO, "regimen handler called OK");
-	fd = inotify_init();
-	wd = inotify_add_watch(fd, REGIMEN_UPDATE_NOTIFICATION_FILE, IN_MODIFY | IN_CREATE | IN_DELETE);
-	while (1) {
-		length = read(fd, buffer, BUF_LEN);
-		if  (i< length) {
-        		struct inotify_event *event =(struct inotify_event *) &buffer[i];
-			if (current_timestamp() - bit_time < MIN_TIME_BETWEEN_NOTIFICATIONS)
-				continue;
-
-			bit_time = current_timestamp();
-			ND_printlog(ND_LOG_INFO, "regimen edit request, perform serial number file validity test");
-			if (test_serial_number_validity() == FAILED)
-				exec_system_command(VAR_COMMAND_error_in_serial_file, "/system/bin/ate_commands.sh");
-			}
-	}
-	return 0;
+	read_file_data_no_space(SERIAL_NUMBER_FACTORY, buffer, MAX_SYSTEM_COMMAND_LEN);
+	length = strlen(buffer);
+	calculate_pincodelen_digits_code(sn_buffer, buffer, length);
+	create_file_if_needed(SERIAL_NUMBER_FILE);
+	try_write_file(SERIAL_NUMBER_FILE, sn_buffer);
 }
 
 void *pincode_handler(void *socket_desc)
@@ -1240,6 +1311,7 @@ void *pincode_handler(void *socket_desc)
 	char buffer[BUF_LEN];
 
 	ND_printlog(ND_LOG_INFO, "pincode handler called OK");
+	create_sn_pincode();
 	fd = inotify_init();
 	wd = inotify_add_watch(fd, RECIVED_PINCODE_NOTIFY_API, IN_MODIFY | IN_CREATE | IN_DELETE);
 	while (1) {

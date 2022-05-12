@@ -19,6 +19,9 @@
 #define BIT_RTCFUNCTIONAL "BIT_RTCFUNCTIONAL"
 #define BIT_LANGUAGE_FILE "BIT_LANG_FILE"
 #define BIT_LANGUAGE_VIDEO "BIT_LANG_VIDEO"
+#define BIT_LANG_CONF "BIT_LANG_CONF"
+#define BIT_SERIAL_NUMBER "BIT_SERIAL_NUMBER"
+#define BIT_U14_FUNCTIONALITY "BIT_U14_FUNCTIONALITY"
 #define BIT_FWCRC "BIT_FWCRC"
 #define BIT_APKCRC "BIT_APKCRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
@@ -110,6 +113,9 @@
 #define VAR_COMMAND_error_in_languge_files "571"
 #define VAR_COMMAND_error_in_video_files "572"
 #define VAR_COMMAND_error_in_serial_file "573"
+#define USEC_I2C_RETRY 100000
+#define I2C_MAX_RETRY 3
+#define LATEST_BIT_STATUS "/data/latest_bit_status"
 
 typedef struct {
 	char* year;
