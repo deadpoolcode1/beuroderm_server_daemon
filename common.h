@@ -17,6 +17,7 @@
 #endif
 
 #define EMPTY_MODE 0
+#define OVERWRITE_MODE 6
 #define MAX_ALLOWED_TRAILING_SPACES 5
 #define error_message_read_file "error reading file"
 #define error_message_fw_error "error, fw unexpected behaviour\n"

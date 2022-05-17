@@ -58,7 +58,6 @@ struct bittest_info {
 	uint8_t language_file_status;
 	uint8_t language_video_status;
 	uint8_t serial_number_status;
-	uint8_t language_conf_status;
 	uint8_t u14_functionality;
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
@@ -66,7 +65,7 @@ struct bittest_info {
 };
 
 alarms_struct alarms;
-struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED};
+struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string, bool print_result);
 
 int exec_system_command(const char * parameter, const char* process_to_execute);
@@ -372,8 +371,6 @@ char * return_current_bit_status(char *update_string, bool print_result)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_boolean(root_object, BIT_SERIAL_NUMBER, latest_bittest.serial_number_status)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
-	if ((json_object_set_boolean(root_object, BIT_LANG_CONF, latest_bittest.language_conf_status)) == JSONFailure)
-		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_boolean(root_object, BIT_U14_FUNCTIONALITY, latest_bittest.u14_functionality)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp)) == JSONFailure)
@@ -470,7 +467,7 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 	char md5_string_search[MAX_SYSTEM_COMMAND_LEN] = {0};
 	uint8_t reply = FAILED;
 
-	ND_printlog(ND_LOG_INFO, "test_dir: %s dir_md5_file:%s lang_to_test:%s\n", test_dir, dir_md5_file, lang_to_test);
+	ND_printlog(ND_LOG_INFO, "test_dir: %s dir_md5_file:%s\n", test_dir, dir_md5_file, lang_to_test);
 	if (strcmp(lang_to_test, NO_LANG) == 0) {
 		read_file_data_no_space(LANGUGE_FILE, lang_type, MAX_SYSTEM_COMMAND_LEN);
 		if (strlen (lang_type) < 2) {
@@ -548,13 +545,8 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	value_to_pass = FAILED;
 	if (test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG))
 		value_to_pass = PASSED;
-	latest_bittest.language_file_status = value_to_pass;
-	//languge conf status
-	value_to_pass = FAILED;
-	if (test_languge(TEXT_DIR, TEXT_DIR_MD5, LANG_CONF_FILE))
-		value_to_pass = PASSED;
-	latest_bittest.language_conf_status = value_to_pass;
 
+	latest_bittest.language_file_status = value_to_pass;
 	//U14 finctionality
 	latest_bittest.u14_functionality = i2c_max77818charger_status_no_alarms();
 
@@ -576,16 +568,12 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		value_to_pass = PASSED;
 	latest_bittest.apk_crc_status = value_to_pass;
 
-	value_to_pass = FAILED;
-	value_to_pass = test_serial_number_validity();
-	latest_bittest.serial_number_status = value_to_pass;
-
 	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
 
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
 
-//check without battery existance bit and without video files bit, this effects sleep time 
+//check without battery existance bit, video files bit, and serial number test this effects sleep time 
 	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr, false));
 	ptr = strstr(bit_resultstr, "false");
 	if (ptr!= NULL)
@@ -614,13 +602,14 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG))
 		value_to_pass = PASSED;
 	latest_bittest.language_video_status = value_to_pass;
+
+	//serial number test
+	value_to_pass = FAILED;
+	value_to_pass = test_serial_number_validity();
+	latest_bittest.serial_number_status = value_to_pass;
+
 //check with all bit tests, including battery test
 	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr, true));
-	ptr = strstr(bit_resultstr, "false");
-	if (ptr!= NULL)
-		bit_result = FAILED;
-	else
-		bit_result = PASSED;
 	ND_printlog(ND_LOG_INFO, "bit_result:%d\n",bit_result);
 	if (!update_status)
 		return bit_result;
@@ -813,7 +802,7 @@ void *connection_handler(void *socket_desc)
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
-			fd = open_file(commandFile.name, O_RDWR, EMPTY_MODE);
+			fd = open_file(commandFile.name, O_RDWR | O_TRUNC, EMPTY_MODE);
 			if (fd < 0) {
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_NACK), sizeof(returnMsg) / sizeof(char)))
 					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
