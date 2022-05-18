@@ -802,6 +802,13 @@ void *connection_handler(void *socket_desc)
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "value:%s\n", commandFile.value);
+			//is case ftu is done, APK sends command /data/IsFTU=0. and previuse value must be /data/IsFTU=2, in this case we just completed FTU and save FTU date
+			if (strcmp(commandFile.name, "/data/IsFTU") == 0 && strncmp(commandFile.value, "0",1) == 0) {
+				//check if prev FTU value is 2
+				read_file_data_no_space("/data/IsFTU", read1, 1);
+				if (strncmp(read1,"2", 1) == 0)
+					exec_system_command("", "/system/bin/saveftudate_script.sh");
+			}
 			fd = open_file(commandFile.name, O_RDWR | O_TRUNC, EMPTY_MODE);
 			if (fd < 0) {
 				if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_NACK), sizeof(returnMsg) / sizeof(char)))
