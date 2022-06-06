@@ -43,10 +43,16 @@
 #define SERIAL_NUMBER_VALIDITY_FILE "/data/main_snv"
 #define DEFAULT_SERIAL_NUMBER "0000000000"
 #define NO_LANG "NONE"
-#define LANG_CONF_FILE "languages.json"
 #define USE_DEFAULT_KEY "use_default_key=1"
 #define MIN_VALID_FACTORY_SN_LEN 6
-
+#define NONVOLOTILE_USERDATA_FILE "/data/boot_args"
+#define USEC_NONVOLOTILE_ACTION 100000
+#define NONVOLOTILE_READ_SCRIPT "/system/bin/read_nonvolotile.sh"
+#define NONVOLOTILE_WRITE_SCRIPT "/system/bin/write_nonvolotile.sh"
+#define END_STRING "zzz"
+#define MAX_CONF_SIZE 8192
+#define EMPTY_NONVOLOTILE "main_sn=zzz\rmain_pn=zzz\rsom_sn=zzz\rcradle_sn=zzz\rftu_date=zzz\r0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+#define EMPTY_NONVOLOTILE_MAXLEN 200
 enum {
 	STR2INT_SUCCESS,
 	STR2INT_OVERFLOW,
@@ -61,6 +67,26 @@ enum {
 	OPEN_FILE_READ_WRITE
 };
 
+typedef struct {
+	char* main_sn;
+	char* main_pn;
+	char* som_sn;
+	char* cradle_sn;
+	char* ftu_date;
+} nonvolotile_configuration;
+
+nonvolotile_configuration nonvolotile_config;
+
+
+typedef struct {
+	char main_sn[32];
+	char main_pn [32];
+	char som_sn[32];
+	char cradle_sn[32];
+	char ftu_date[32];
+} nonvolotile_configuration1;
+
+nonvolotile_configuration1 nonvolotile_config1;
 
 int check_snprintf(int ret_value, int max_length);
 int str2int(int *out, char *s, int max_spaces, int size_of_string);
@@ -81,6 +107,10 @@ void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size);
 void calculate_pincodelen_digits_code(char *result, const buffer, int length);
 char * trim(char * s);
 void calculate_pincode(char* buffer_calculated_valid_pincode_result, const char* buffer_snp, int length);
+void nonvolotile_readall(char *reply, size_t buffer_size);
+void nonvolotile_delete();
+void nonvolotile_update(const char* parameter, const char* value);
+void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
 
 #define FREE(p) \
 do \

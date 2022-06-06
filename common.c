@@ -435,3 +435,165 @@ char * trim(char * s)
 	return strndup(s, l);
 }
 
+int m_exec_system_command(const char * parameter, const char* process_to_execute)
+{
+	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
+	if (strlen(parameter) > MAX_SYSTEM_COMMAND_LEN)
+		return -1;
+        if (strncmp (parameter,"sudo",strlen("sudo") == 0))
+		return -1;
+	pid_t my_pid, parent_pid, child_pid;
+	if ((child_pid = fork()) < 0) {
+		ND_printlog(ND_LOG_ERROR, "fork failed");
+		return -1;
+	}
+
+	if (child_pid == 0) {
+		execl("/system/bin/sh", "/system/bin/sh", "-C", process_to_execute, parameter, (char *)NULL);
+		return -1; //return fail if reached here
+	};
+	return 0;
+}
+
+
+void read_file(const char *filename, char *reply, size_t buffer_size)
+{
+    	char *ptr;
+    	char *fcontent = NULL;
+    	int fsize = 0;
+    	FILE *fp;
+
+    	fp = fopen(filename, "r");
+    	if(fp) {
+        	fseek(fp, 0, SEEK_END);
+        	fsize = ftell(fp);
+		if (fsize > buffer_size)
+			return;
+        	rewind(fp);
+        	fread(reply, 1, fsize, fp);
+        	fclose(fp);
+    	}
+
+	ptr = strstr(reply, END_STRING);
+	if (ptr!= NULL)
+		*ptr = '\0';
+}
+
+void nonvolotile_read()
+{
+	exec_system_command("", NONVOLOTILE_READ_SCRIPT);
+	usleep(USEC_NONVOLOTILE_ACTION);
+}
+
+/** @brief handles reading ini file for start year parameter
+ */
+static int handler_nonvolotileparse(void* user, const char* section, const char* name,
+		   const char* value)
+{
+    nonvolotile_configuration* pconfig = (nonvolotile_configuration*)user;
+
+    #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+    if (MATCH("", "main_sn")) {
+        pconfig->main_sn = strdup(value);
+	sprintf(nonvolotile_config1.main_sn, "%s", value);
+    } else if (MATCH("", "main_pn")) {
+        pconfig->main_pn = strdup(value);
+    } else if (MATCH("", "som_sn")) {
+        pconfig->som_sn = strdup(value);
+    } else if (MATCH("", "cradle_sn")) {
+        pconfig->cradle_sn = strdup(value);
+    } else if (MATCH("", "ftu_date")) {
+        pconfig->ftu_date = strdup(value);
+    } else {
+        return 0;  /* unknown section/name, error */
+    }
+    return 1;
+
+}
+
+void init_nonvolotile_var()
+{
+	nonvolotile_config.main_sn = strdup(END_STRING);
+	nonvolotile_config.main_pn = strdup(END_STRING);
+	nonvolotile_config.som_sn = strdup(END_STRING);
+	nonvolotile_config.cradle_sn = strdup(END_STRING);
+	nonvolotile_config.ftu_date = strdup(END_STRING);
+}
+void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size)
+{
+	int err = 0;
+
+	init_nonvolotile_var();
+	sprintf(reply, "%s", "");
+	err = ini_parse(NONVOLOTILE_USERDATA_FILE, handler_nonvolotileparse, &nonvolotile_config); 
+	if (err == 1) {
+		printf("error parsing data:%d\r\n", err);
+		return;
+	}
+
+	if (strcmp(parameter,"main_sn") == 0) {
+		sprintf(reply, "%s", nonvolotile_config.main_sn);
+	}
+	else if (strcmp(parameter,"main_pn") == 0)
+		sprintf(reply, "%s", nonvolotile_config.main_pn);
+	else if (strcmp(parameter,"som_sn") == 0)
+		sprintf(reply, "%s", nonvolotile_config.som_sn);
+	else if (strcmp(parameter,"cradle_sn") == 0)
+		sprintf(reply, "%s", nonvolotile_config.cradle_sn);
+	else if (strcmp(parameter,"ftu_date") == 0)
+		sprintf(reply, "%s", nonvolotile_config.ftu_date);
+	else
+		sprintf(reply, "%s", "");
+	
+}
+
+void nonvolotile_readall(char *reply, size_t buffer_size)
+{
+	nonvolotile_read();
+	read_file(NONVOLOTILE_USERDATA_FILE, reply, buffer_size);
+}
+
+void nonvolotile_delete()
+{
+	printf ("write to file%s\r\n data:%s\r\n", NONVOLOTILE_USERDATA_FILE, EMPTY_NONVOLOTILE);
+	safe_write_file_stream(NONVOLOTILE_USERDATA_FILE, EMPTY_NONVOLOTILE);
+	exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
+	usleep(USEC_NONVOLOTILE_ACTION);
+}
+
+void nonvolotile_update(const char* parameter, const char* value)
+{
+	int err = 0;
+	char buf[EMPTY_NONVOLOTILE_MAXLEN];
+	if (strlen(value)  > EMPTY_NONVOLOTILE_MAXLEN) {
+		printf ("value too long\r\n");
+		return;
+	}
+	init_nonvolotile_var();
+
+	ini_parse(NONVOLOTILE_USERDATA_FILE, handler_nonvolotileparse, &nonvolotile_config); 
+	if (strcmp(parameter,"main_sn") == 0)
+		nonvolotile_config.main_sn = strdup(value);
+	else if (strcmp(parameter,"main_pn") == 0)
+		nonvolotile_config.main_pn = strdup(value);
+	else if (strcmp(parameter,"som_sn") == 0)
+		nonvolotile_config.som_sn = strdup(value);
+	else if (strcmp(parameter,"cradle_sn") == 0)
+		nonvolotile_config.cradle_sn = strdup(value);
+	else if (strcmp(parameter,"ftu_date") == 0)
+		nonvolotile_config.ftu_date = strdup(value);
+	else { 
+		printf("no such parameter\r\n");
+		return;
+	}
+
+	sprintf(buf, "main_sn=%s\rmain_pn=%s\rsom_sn=%s\rcradle_sn=%s\rftu_date=%s\r",nonvolotile_config.main_sn, \
+			nonvolotile_config.main_pn,nonvolotile_config.som_sn, \
+			nonvolotile_config.cradle_sn,nonvolotile_config.ftu_date);
+
+	safe_write_file_stream(NONVOLOTILE_USERDATA_FILE, buf);
+	usleep(USEC_NONVOLOTILE_ACTION);
+	//exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
+	usleep(USEC_NONVOLOTILE_ACTION);
+	printf("saved data:\r\n %s", buf);
+}

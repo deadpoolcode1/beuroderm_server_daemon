@@ -318,8 +318,6 @@ uint8_t check_i2c_validity(char *path, uint8_t m_address, uint8_t m_register)
 	return res;
 }
 
-
-
 /** @brief return current BIT status, only read existing status not performing test
  */
 char * return_current_bit_status(char *update_string, bool print_result)
@@ -549,7 +547,8 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	latest_bittest.language_file_status = value_to_pass;
 	//U14 finctionality
 	latest_bittest.u14_functionality = i2c_max77818charger_status_no_alarms();
-
+	if (latest_bittest.i2c_max77818charger_status == FAILED)
+		latest_bittest.u14_functionality = FAILED;
        	if (blocking == NON_BLOCKING) {
                if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
                        create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));
@@ -574,12 +573,18 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure endded! ***\n");
 
 //check without battery existance bit, video files bit, and serial number test this effects sleep time 
+	bit_resultstr[0] = '\0';	
+//make sure to perform test with existance bit, video files bit, and serial number as pass, so it will not effect bit fail sleep behaviure 
+	latest_bittest.battery_status = PASSED;
+	latest_bittest.language_video_status = PASSED;
+	latest_bittest.serial_number_status = PASSED;
 	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr, false));
 	ptr = strstr(bit_resultstr, "false");
 	if (ptr!= NULL)
 		bit_result = FAILED;
 	else
 		bit_result = PASSED;
+
 	sprintf(tmp, "%d", bit_result);
 	try_write_file(LATEST_BIT_STATUS, tmp);
 //perform battery test
@@ -975,15 +980,16 @@ void *connection_handler(void *socket_desc)
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "write_command:alarms")) != NULL) { //this is a temp fix for passing alarm status untill unify with interrupt script
-			char alarm_status [7];
+			char alarm_status [8];
 			if (check_snprintf(snprintf(alarm_status, sizeof(alarm_status) / sizeof(char), "%s", ptr + strlen("write_command:alarms")), sizeof(alarm_status) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			alarms.cpu_high_temperature_alarm = (uint8_t)(alarm_status[0] - '0');
 			alarms.cpu_critical_temperature_alarm = (uint8_t)(alarm_status[1] - '0');
 			alarms.wc_high_temperature_alarm = (uint8_t)(alarm_status[2] - '0');
 			alarms.battery_high_temperature_alarm = (uint8_t)(alarm_status[3] - '0');
-			alarms.battery_not_detected = (uint8_t)(alarm_status[4] - '0');
-			alarms.wc_error_alarm = (uint8_t)(alarm_status[5] - '0');
+			alarms.battery_critical_temperature_alarm = (uint8_t)(alarm_status[4] - '0');
+			alarms.battery_not_detected = (uint8_t)(alarm_status[5] - '0');
+			alarms.wc_error_alarm = (uint8_t)(alarm_status[6] - '0');
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", REPLY_ACK), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (send(sock , returnMsg , strlen(returnMsg), 0) == -1)
@@ -996,6 +1002,7 @@ void *connection_handler(void *socket_desc)
 			json_object_set_boolean(root_object, "cpu_critical_temperature_alarm", alarms.cpu_critical_temperature_alarm);
 			json_object_set_boolean(root_object, "wc_high_temperature_alarm", alarms.wc_high_temperature_alarm);
 			json_object_set_boolean(root_object, "battery_high_temperature_alarm", alarms.battery_high_temperature_alarm);
+			json_object_set_boolean(root_object, "battery_critical_temperature_alarm", alarms.battery_critical_temperature_alarm);
 			json_object_set_boolean(root_object, "battery_not_detected", alarms.battery_not_detected);
 			json_object_set_boolean(root_object, "wc_error_alarm", alarms.wc_error_alarm);
 			if ((serialized_string = json_serialize_to_string_pretty(root_value)) == NULL)
@@ -1270,8 +1277,10 @@ void *language_handler(void *socket_desc)
 
 			bit_time = current_timestamp();
 			ND_printlog(ND_LOG_INFO, "language selected, perform CRC test");
-			if (test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG) == FAILED)
+			if (test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG) == FAILED) {
 				exec_system_command(VAR_COMMAND_error_in_languge_files, "/system/bin/ate_commands.sh");
+				try_write_file(LATEST_BIT_STATUS, "0");  //this fails the BIT status
+			}
 
 			if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG) == FAILED)
 				exec_system_command(VAR_COMMAND_error_in_video_files, "/system/bin/ate_commands.sh");

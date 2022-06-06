@@ -6,7 +6,7 @@
 #define BIT_I2C_PMIC "BIT_I2C_PMIC"
 #define BIT_I2C_FUELGAUGE "BIT_I2C_FUELGAUGE"
 #define BIT_I2C_MAX77818TOP "BIT_I2C_MAX77818TOP"
-#define BIT_I2C_MAX77818CHARGER "BIT_I2C_MAX77818CHARGER"
+#define BIT_I2C_MAX77818CHARGER "BIT_I2C_MAX77816_U14"
 #define BIT_I2C_DISPLAYTOUCHPANEL "BIT_I2C_DISPLAYTOUCHPANEL"
 #define BIT_I2C_MAX77816DC3 "BIT_I2C_MAX77816DC3"
 #define BIT_I2C_RTC "BIT_I2C_RTC"
@@ -111,7 +111,7 @@
 #define VAR_COMMAND_5v_no_communication "569"
 #define VAR_COMMAND_error_in_languge_files "571"
 #define VAR_COMMAND_error_in_video_files "572"
-#define VAR_COMMAND_error_in_serial_file "573"
+#define VAR_COMMAND_error_in_serial_file "573" 
 #define USEC_I2C_RETRY 100000
 #define I2C_MAX_RETRY 3
 #define LATEST_BIT_STATUS "/data/latest_bit_status"
@@ -158,8 +158,9 @@ typedef struct {
 	uint8_t cpu_critical_temperature_alarm;
 	uint8_t wc_high_temperature_alarm;
 	uint8_t battery_high_temperature_alarm;
+	uint8_t battery_critical_temperature_alarm;
 	uint8_t battery_not_detected;
-	uint8_t wc_error_alarm;
+	uint8_t wc_error_alarm;	
 } alarms_struct;
 #endif /* SERVER_LISTNER_H_ */
 
