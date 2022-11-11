@@ -490,15 +490,9 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 				continue;
 			if (strcmp(dir->d_name, lang_type) == 0) {
 				ND_printlog(ND_LOG_INFO, "check md5 for directory:%s\n",dir->d_name);
-	    			sprintf(command,"%s%s",test_dir, dir->d_name);
-	    			exec_system_command(command, MD5_SCRIPT);//write md5 to temp file
-	    			usleep(DELAY_PER_MD5_CALC);
-	    			//read temp file for md5
-				while (file_exists(MD5_FILE) < 0) {
-				}
-				usleep(1000000);
+	    			sprintf(command,"%s%s%s%s","find ",test_dir,dir->d_name," -type f | xargs cksum | cksum");
 	    			md5_calculated[0] = '\0';
-	    			read_file_data(MD5_FILE, md5_calculated, MAX_SYSTEM_COMMAND_LEN);
+	    			exec_system_command2(command, md5_calculated);
 				sprintf(md5_string_search,"%s=%s",dir->d_name,md5_calculated);
 				reply = compare_md5(md5_string_search, dir_md5_file);
 	    			closedir(d);
@@ -1357,11 +1351,8 @@ void *language_handler(void *socket_desc)
 
 			bit_time = current_timestamp();
 			ND_printlog(ND_LOG_INFO, "language selected, perform CRC test");
-			usleep(1000000);
 			test_langugetxt_res = test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG);
-			usleep(1000000);
 			test_langugevid_res = test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG);
-
 			ND_printlog(ND_LOG_INFO, "test_langugetxt_res:%d, test_langugevid_res:%d",test_langugetxt_res, test_langugevid_res);
 			if (test_langugetxt_res == FAILED) {
 				latest_bittest.language_file_status = FAILED;

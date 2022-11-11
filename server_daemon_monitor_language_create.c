@@ -10,6 +10,32 @@
 
 void create_md5_file(char *dir_name, char *md5_dir_name);
 
+
+/** @brief general function used for executing shell commands from ate_daemon
+ */
+int exec_system_command2(const char * command, char* reply)
+{
+   char buffer[REPLY_STRING_LENGTH];
+
+   // Open pipe to file
+   FILE* pipe = popen(command, "r");
+   if (!pipe) {
+      return 1;
+   }
+
+   // read till end of process:
+   while (!feof(pipe)) {
+
+      // use buffer to read and add to result
+      if (fgets(buffer, 128, pipe) != NULL)
+         strcat(reply, buffer);
+      ND_printlog(ND_LOG_INFO, "buf:%s\n", buffer);
+   }
+
+   pclose(pipe);
+   return 0;
+}
+
 /** @brief general function used for executing shell commands from ate_daemon
  */
 int exec_system_command(const char * parameter, const char* process_to_execute)
@@ -31,6 +57,7 @@ int exec_system_command(const char * parameter, const char* process_to_execute)
 	};
 	return 0;
 }
+
 
 /** @brief check if file exists
  */
@@ -56,6 +83,7 @@ void create_md5_file(char *dir_name, char *md5_dir_name)
     char files_md5_data[MAX_MD5_DATA_LEN] = {0};
     char command[MAX_SYSTEM_COMMAND_LEN] = {0};
     char md5_calculated[MAX_SYSTEM_COMMAND_LEN] = {0};
+    char reply[MAX_SYSTEM_COMMAND_LEN] = {0};
 
     server_daemon_kmsg_print("--- server_daemon_monitor_language STARTED ---");
     if (ND_openlog("server_daemon_monitor_language", ND_LOG_DEBUG) != 0) {
@@ -72,21 +100,13 @@ void create_md5_file(char *dir_name, char *md5_dir_name)
         {
 	    if (strlen(dir->d_name) < 3)
 		continue;
-	    ND_printlog(ND_LOG_INFO, "%s\n", dir->d_name);
-	    sprintf(command,"%s%s",dir_name, dir->d_name);
-	    ND_printlog(ND_LOG_INFO, "md5 calculate for: %s\n", command);
-	    exec_system_command(command, MD5_SCRIPT);//write md5 to temp file
-	    usleep(DELAY_PER_MD5_CALC);
-	    while (file_exists(MD5_FILE) < 0) {
-	    }
-	    usleep(1000000);
-	    //read temp file for md5
-	    md5_calculated[0] = '\0';
-	    read_file_data(MD5_FILE, md5_calculated, MAX_SYSTEM_COMMAND_LEN);
-	    ND_printlog(ND_LOG_INFO, "md5 result: %s\n", md5_calculated);
-            sprintf(files_md5_data+strlen(files_md5_data),"%s=%s",dir->d_name,md5_calculated);
-	    ND_printlog(ND_LOG_INFO, "directory calculated:%s\n",dir_name);
-	    ND_printlog(ND_LOG_INFO, "md5::%s\n",md5_calculated);
+	    sprintf(command,"%s%s%s%s","find ",dir_name,dir->d_name," -type f | xargs cksum | cksum");
+	    ND_printlog(ND_LOG_INFO, "command: %s\n", command);
+	    reply[0] = '\0';
+	    exec_system_command2(command, reply);
+            sprintf(files_md5_data+strlen(files_md5_data),"%s=%s",dir->d_name,reply);
+	    ND_printlog(ND_LOG_INFO, "directory calculated:%s\n",dir->d_name);
+	    ND_printlog(ND_LOG_INFO, "md5::%s\n",reply);
         }
         closedir(d);
 	ND_printlog(ND_LOG_INFO, "files_md5_data:%s\n",files_md5_data);
