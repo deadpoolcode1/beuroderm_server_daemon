@@ -59,13 +59,15 @@ struct bittest_info {
 	uint8_t language_video_status;
 	uint8_t serial_number_status;
 	uint8_t u14_functionality;
+	uint8_t audio_files_status;
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
 	uint8_t bit_status;
+	uint8_t bit_test_full_completion;
 };
 
 alarms_struct alarms;
-struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED};
+struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string, bool print_result);
 
 int exec_system_command(const char * parameter, const char* process_to_execute);
@@ -219,8 +221,8 @@ void *socket_handler(void *);
 void *wakeup_handler(void *);
 void *language_handler(void *);
 void *pincode_handler(void *);
-
-
+void *greenled_handler(void *);
+void *watchdog_handler(void *);
 
 /** @brief read config data to buffer
  */
@@ -260,12 +262,7 @@ read_config_file_data_error:
  */
 int file_exists(char *filename)
 {
-	int fd = 0;
-
-	if ((fd = access(filename, F_OK)) == -1)
-		ND_printlog(ND_LOG_ERROR, "error, file %s not exits\n", filename);
-
-	return fd;
+	return access(filename, F_OK);
 }
 
 
@@ -371,6 +368,8 @@ char * return_current_bit_status(char *update_string, bool print_result)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_boolean(root_object, BIT_U14_FUNCTIONALITY, latest_bittest.u14_functionality)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_AUDIO_FILES, latest_bittest.audio_files_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((update_string = json_serialize_to_string_pretty(root_value)) == NULL)
@@ -421,7 +420,8 @@ void create_rtc_functional_timer(char *filebufferl, size_t size_filebufferl)
 #define STATUS_REGISTER 0x01
 uint8_t i2c_max77818charger_status_no_alarms()
 {
-	return (read_i2c(i2c0_path, i2c_max77818charger_status_address, i2c_max77818charger_status_register_detailed) == i2c_max77818charger_ok) ? PASSED : FAILED;
+	uint8_t res = read_i2c(i2c0_path, i2c_max77818charger_status_address, i2c_max77818charger_status_register_detailed);
+	return (res == i2c_max77818charger_ok || res == i2c_max77818charger_ok + 1) ? PASSED : FAILED;
 }
 /** @brief testing I2C valid communication to devices
  */
@@ -475,12 +475,10 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 	} else {
 		sprintf(lang_type,"%s", lang_to_test);
 	}
-	
 	d = opendir(SDCARD_DIR);
 	while (!d)
 	{
 		d = opendir(SDCARD_DIR);
-		usleep(DELAY_PER_MD5_CALC);
 	}
 
 	d = opendir(test_dir);
@@ -496,6 +494,9 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 	    			exec_system_command(command, MD5_SCRIPT);//write md5 to temp file
 	    			usleep(DELAY_PER_MD5_CALC);
 	    			//read temp file for md5
+				while (file_exists(MD5_FILE) < 0) {
+				}
+				usleep(1000000);
 	    			md5_calculated[0] = '\0';
 	    			read_file_data(MD5_FILE, md5_calculated, MAX_SYSTEM_COMMAND_LEN);
 				sprintf(md5_string_search,"%s=%s",dir->d_name,md5_calculated);
@@ -526,6 +527,7 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	char bit_resultstr[REPLY_STRING_LENGTH] = {0};
 	uint8_t value_to_pass;
 	char tmp[2] = {0};
+	char tmp1[2] = {0};
 	
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	i2c_communications_tests();
@@ -567,6 +569,13 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		value_to_pass = PASSED;
 	latest_bittest.apk_crc_status = value_to_pass;
 
+        //audio files
+        value_to_pass = FAILED;
+        if (test_languge(AUDIO_DIR, AUDIO_DIR_MD5, "alarms"))
+                value_to_pass = PASSED;
+        latest_bittest.audio_files_status = value_to_pass;
+
+
 	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
 
@@ -586,10 +595,12 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		bit_result = PASSED;
 
 	sprintf(tmp, "%d", bit_result);
-	try_write_file(LATEST_BIT_STATUS, tmp);
+	sprintf(tmp1, "%d", bit_result);
+	
 //perform battery test
 	value_to_pass = FAILED;
 	if (!(read_file_data(battery_exists_path, filebuffer, SHORT_BUFFER_LEN))) {
+		//value_to_pass = PASSED;
 		if ((str2int(&battery_value, filebuffer, MAX_ALLOWED_TRAILING_SPACES, sizeof(filebuffer) / sizeof(char)) == STR2INT_SUCCESS) && (battery_value > 0))
 		{
 			//seems like battary exists, varify existance by checking ,avarage measured voltage is above minimal voltage
@@ -602,12 +613,6 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		}
 	}
 	latest_bittest.battery_status = value_to_pass;
-	//video test
-	value_to_pass = FAILED;
-	if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG))
-		value_to_pass = PASSED;
-	latest_bittest.language_video_status = value_to_pass;
-
 	//serial number test
 	value_to_pass = FAILED;
 	value_to_pass = test_serial_number_validity();
@@ -621,6 +626,21 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 
 	latest_bittest.bit_status = bit_result;
 	sprintf(tmp, "%d", bit_result);
+
+	ND_printlog(ND_LOG_INFO, "LATEST_BIT_STATUS:%s : %s\n",LATEST_BIT_STATUS, tmp1);
+	try_write_file(LATEST_BIT_STATUS, tmp1);
+	latest_bittest.bit_test_full_completion = PASSED;
+        //video test
+        value_to_pass = FAILED;
+        if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG))
+                value_to_pass = PASSED;
+	else
+		exec_system_command(VAR_COMMAND_error_in_video_files, "/system/bin/ate_commands.sh");
+        latest_bittest.language_video_status = value_to_pass;
+
+	ND_printlog(ND_LOG_INFO, "after video testbit_result:%d\n",bit_result);
+        snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr, true));
+        ND_printlog(ND_LOG_INFO, "bit_result:%d\n",bit_result);
 
 	return latest_bittest.bit_status;
 }
@@ -647,6 +667,30 @@ int exec_system_command(const char * parameter, const char* process_to_execute)
 	return 0;
 }
 
+/** @brief general function used for executing shell commands from ate_daemon
+ */
+int exec_system_command2(const char * command, char* reply)
+{
+   char buffer[REPLY_STRING_LENGTH];
+
+   // Open pipe to file
+   FILE* pipe = popen(command, "r");
+   if (!pipe) {
+      return 1;
+   }
+
+   // read till end of process:
+   while (!feof(pipe)) {
+
+      // use buffer to read and add to result
+      if (fgets(buffer, 128, pipe) != NULL)
+         strcat(reply, buffer);
+      ND_printlog(ND_LOG_INFO, "buf:%s\n", buffer);
+   }
+
+   pclose(pipe);
+   return 0;
+}
 
 
 void sig_handler(int signo)
@@ -682,6 +726,16 @@ int main(void)
 			return 1;
 	}
 
+	pthread_t  greenled_thread;
+	if (pthread_create(& greenled_thread , NULL ,  greenled_handler , (void*) NULL) < 0) {
+			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
+			return 1;
+	}
+	pthread_t  watchdog_thread;
+	if (pthread_create(& watchdog_thread , NULL ,  watchdog_handler , (void*) NULL) < 0) {
+			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
+			return 1;
+	}
 	//thread handling reciving socket connections 
 	pthread_t socket_thread;
 	while (1) {
@@ -700,7 +754,7 @@ void *socket_handler(void *test)
 {
 	int socket_desc = 0, new_socket = 0, c = 0 , *new_sock = NULL;
 	struct sockaddr_in server , client;
-
+	
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		PRINTE("error, Could not create socket\n");
@@ -721,27 +775,33 @@ void *socket_handler(void *test)
 		PRINTE("error, can't listen to port\n");
 	}
 	//Accept and incoming connection
-
+	pthread_t sniffer_thread;
 	ND_printlog(ND_LOG_INFO, "Waiting for incoming connections...\n");
 	c = sizeof(struct sockaddr_in);
 	while ((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))) {
 		if (new_socket == -1)
 			ND_printlog(ND_LOG_INFO, "server Connection accepted\n");
 		//Reply to the client
-		pthread_t sniffer_thread;
+		//pthread_t sniffer_thread;
 		if ((new_sock = malloc(sizeof(int))) == NULL) {
 			FREE(new_sock);
 			PRINTE ("error, Unable to allocate buffer");
 			return (void *)0;
 		}
 		*new_sock = new_socket;
-		if (pthread_create(&sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0) {
+		if (new_socket < 0) {
+			exit(-1);
+			//ND_printlog(ND_LOG_ERROR, "error, server accept failed\n");
+			return (void *)0;
+		}
+		if (pthread_create(&sniffer_thread , NULL ,  connection_handler , (void*) new_sock) !=0) {
 			ND_printlog(ND_LOG_ERROR, "error, server could not create thread\n");
 			return (void *)0;
 		}
+		pthread_detach(sniffer_thread);
 		//Now join the thread , so that we dont terminate before the thread
-		pthread_join(sniffer_thread , NULL);
-		FREE(new_sock);
+		//pthread_join(sniffer_thread , NULL);
+		//FREE(new_sock);
 		ND_printlog(ND_LOG_INFO, "server Handler assigned\n");
 	}
 
@@ -768,6 +828,7 @@ void *connection_handler(void *socket_desc)
 	char read1[STD_FILE_LENGTH] = {0};
 	char read2[STD_FILE_LENGTH] = {0};
 	char read3[STD_FILE_LENGTH] = {0};
+	char read4[STD_FILE_LENGTH] = {0};
 	char buffer_read_file[FILE_BUFFER_LEN] = {0};
 	char type[STD_FILE_LENGTH] = {0};
 	size_t size_of_array_read_file = sizeof(buffer_read_file);
@@ -775,6 +836,8 @@ void *connection_handler(void *socket_desc)
 		char name [STD_FILE_LENGTH];
 		char value [STD_FILE_LENGTH];
 	};
+
+	ND_printlog(ND_LOG_INFO, "connection_handler called:\n");
 	struct file_action commandFile  = { {0}, {0}};
 
 	//Receive a message from client
@@ -863,7 +926,19 @@ void *connection_handler(void *socket_desc)
 			bittest_init_full(UPDATE_STATUS, NON_BLOCKING);
 			if (write(sock , REPLY_ACK , strlen(REPLY_ACK)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		} else if ((ptr = strstr(client_message, "read_bit:bittest")) != NULL) {
+		} else if ((ptr = strstr(client_message, "read_nonvolotile")) != NULL) {
+			/*action is reading nonvolotile value
+			example: read_nonvolotile:main_sn
+			*/
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s",  strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			ND_printlog(ND_LOG_INFO, "nonvolotile value to read:%s\n", commandFile.name);
+			nonvolotile_parse_parameter(commandFile.name, commandFile.value, sizeof(commandFile.value));
+			ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
+			if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
+			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			commandFile.value[0] = '\0';
+		}  else if ((ptr = strstr(client_message, "read_bit:bittest")) != NULL) {
 			/*action is bittest_read
 			*/
 			client_message[0] = '\0';
@@ -1027,6 +1102,21 @@ void *connection_handler(void *socket_desc)
 			}
 			if (send(sock , commandFile.value , strlen(commandFile.value), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+		}  else if ((ptr = strstr(client_message, "read_command:is_wc_on")) != NULL) {
+			read_file_data_no_space("/sys/devices/soc0/filling_station-pm/wpc_led_g/value", read1, size_of_array_read_file);
+			read_file_data_no_space("/sys/devices/soc0/filling_station-pm/wpc_stby/value", read2, size_of_array_read_file);
+			if (strcmp(read1,"1") == 0 && strcmp(read2,"1") == 0) {
+				usleep(UDELAY_WC_IS_ON);
+				read_file_data_no_space("/sys/devices/soc0/filling_station-pm/wpc_led_g/value", read3, size_of_array_read_file);
+				read_file_data_no_space("/sys/devices/soc0/filling_station-pm/wpc_stby/value", read4, size_of_array_read_file);
+			}
+			if (strcmp(read1,"1") == 0 && strcmp(read2,"1") == 0 && strcmp(read1,read3) == 0 && strcmp(read2,read4) == 0)
+				returnMsg[0] = '1';
+			else
+				returnMsg[0] = '0';
+			returnMsg[1] = '\0';
+			if (send(sock , returnMsg , 2, 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "write_command:last_reboot_reason_done")) != NULL) {
 			fd = open_file(LAST_REBOOT_FILE_PATH, O_RDWR, EMPTY_MODE);
 			if (fd < 0) {
@@ -1070,13 +1160,29 @@ void *connection_handler(void *socket_desc)
 			if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			exec_system_command(VAR_SEND_KEYCODE_SLEEP, "/system/bin/ate_commands.sh");
+				exec_system_command(VAR_COMMAND_ENTERATEMODE, "/system/bin/ate_commands.sh");
+		} else if ((ptr = strstr(client_message, "test_exec")) != NULL) {
+			/*perform exec
+			example: test_exec:/system/bin/monkey --pct-syskeys 0 -p com.neuroderm.ndscreentest 1
+			example: server_daemon_send 127.0.0.1 "test_exec:find /data/NEURODERM/LANGUAGES/VIDEO/en_US/ -type f | xargs cksum | cksum"
+			*/
+			if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);				
+			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s",  strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			ND_printlog(ND_LOG_INFO, "command is:%s\n", commandFile.name);
+			returnMsg[0] = '\0';
+			exec_system_command2(commandFile.name, returnMsg);
+			ND_printlog(ND_LOG_INFO, "reply:%s\n", returnMsg);
 		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			returnMsg[0] = '\0';
-			property_get("sys.boot_completed", returnMsg, "0");
-			if (returnMsg[0] != '1')
+			//property_get("sys.boot_completed", returnMsg, "0");
+			if (latest_bittest.bit_test_full_completion != PASSED)
 				returnMsg[0] = '0';
+			else
+				returnMsg[0] = '1';
 			returnMsg[1] = '\0';
 			ND_printlog(ND_LOG_INFO, "sys.boot_completed:%s\n", returnMsg);
 			if (send(sock , returnMsg , 2, 0) == -1)
@@ -1129,7 +1235,9 @@ end_selection:
 	//Free the socket pointer
 free_socket:
 	FREE(socket_desc);
+	socket_desc = NULL;
 	safe_close(sock);
+	pthread_exit(NULL);	
 	return 0;
 }
 
@@ -1146,46 +1254,12 @@ uint8_t test_if_use_default_key()
  */
 uint8_t test_serial_number_validity()
 {
-	char buffer[MAX_SYSTEM_COMMAND_LEN] = {0};	
-	char serial_number[MAX_SYSTEM_COMMAND_LEN] = {0};
-	char serial_number_crc[MAX_SYSTEM_COMMAND_LEN] = {0};
-	int i = 0;
-	unsigned short length, crc_calculated, crc_expected_number = 0;	
-	read_file_data_no_space(SERIAL_NUMBER_VALIDITY_FILE, serial_number_crc, MAX_SYSTEM_COMMAND_LEN);
-	if (str2int(&crc_expected_number,serial_number_crc, MAX_ALLOWED_TRAILING_SPACES, STD_FILE_LENGTH) != STR2INT_SUCCESS)
-		ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-
-	read_file_data_no_space(SERIAL_NUMBER_FACTORY, serial_number, MAX_SYSTEM_COMMAND_LEN);
-	length = strlen(serial_number);
-	crc_calculated = calc_crc(serial_number, length);
 	if (test_if_use_default_key()) {
 		ND_printlog(ND_LOG_INFO, "config file use_default_key=1, therefore serial number validity test pass\n");
 		return PASSED;
 	}
 
-	//else varify crc calculated file matches factory programmed serial file
-	if (length < MIN_VALID_FACTORY_SN_LEN) {
-		ND_printlog(ND_LOG_INFO, "serial number length : %d, is lower then min allowed: %d\n", length, MIN_VALID_FACTORY_SN_LEN);
-		return FAILED;
-	}
-	//varify not all "0"
-	for (; i < length; i++)
-	{
-		if (serial_number[i] != '0')
-			i = length + 1;
-		
-	}
-	
-	if (i <= length)  {
-		ND_printlog(ND_LOG_INFO, "serial number invalid, can not be all '0':\n");
-		return FAILED;
-	}
-
-
-	ND_printlog(ND_LOG_INFO, "serial number crc expected:%d\n", crc_expected_number);
-	ND_printlog(ND_LOG_INFO, "serial number crc calculated:%d\n", crc_calculated);
-
-	return (crc_calculated == crc_expected_number) ?  PASSED :  FAILED;
+	return (nonvolotile_calculate_crc() == nonvolotile_extract_crc()) ? PASSED : FAILED;
 }
 
 
@@ -1194,16 +1268,20 @@ uint8_t test_serial_number_validity()
  */
 void test_pincode_validity()
 {
-
-	char buffer_snp[MAX_SYSTEM_COMMAND_LEN] = {0};	
+	char *pfound = NULL;
 	char buffer_pincode[MAX_SYSTEM_COMMAND_LEN] = {0};
 	char buffer_calculated_valid_pincode_result[MAX_SYSTEM_COMMAND_LEN] = {0};	
-	read_file_data_no_space(SERIAL_NUMBER_FILE, buffer_snp, MAX_SYSTEM_COMMAND_LEN);
 	read_file_data_no_space(RECIVED_PINCODE_NOTIFY_API, buffer_pincode, MAX_SYSTEM_COMMAND_LEN);
-	ND_printlog(ND_LOG_INFO, "buffer_snp:%s\n", buffer_snp);
-	ND_printlog(ND_LOG_INFO, "buffer_pincode:%s\n", buffer_pincode);
-	calculate_pincode(buffer_calculated_valid_pincode_result, buffer_snp, strlen(buffer_snp));	
-	if (strcmp(buffer_calculated_valid_pincode_result,buffer_pincode) == 0)
+	ND_printlog(ND_LOG_INFO, "recived pincode:%s\n", buffer_pincode);
+	if (test_if_use_default_key()) {
+		sprintf(buffer_calculated_valid_pincode_result, "%s", DEFAULT_PINCODE);
+		ND_printlog(ND_LOG_INFO, "default pincode:%s\n", buffer_calculated_valid_pincode_result);
+	}
+	else {
+		calculate_pincode(buffer_calculated_valid_pincode_result, strlen(buffer_calculated_valid_pincode_result));	
+		ND_printlog(ND_LOG_INFO, "calculated pincode:%s\n", buffer_calculated_valid_pincode_result);
+	}
+	if ((pfound = strstr(buffer_calculated_valid_pincode_result, buffer_pincode)) != NULL)
 		try_write_file(PINCODE_RESULT_API, "1");
 	else
 		try_write_file(PINCODE_RESULT_API, "0");
@@ -1264,7 +1342,9 @@ void *language_handler(void *socket_desc)
 	int wd, fd, length, i=0, bit_result;
 	long long  bit_time = 0;
 	char buffer[BUF_LEN];
-
+	uint8_t test_langugetxt_res = 0;
+	uint8_t test_langugevid_res = 0;
+	
 	ND_printlog(ND_LOG_INFO, "language handler called OK");
 	fd = inotify_init();
 	wd = inotify_add_watch(fd, LANGUGE_FILE, IN_MODIFY | IN_CREATE | IN_DELETE);
@@ -1277,31 +1357,31 @@ void *language_handler(void *socket_desc)
 
 			bit_time = current_timestamp();
 			ND_printlog(ND_LOG_INFO, "language selected, perform CRC test");
-			if (test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG) == FAILED) {
+			usleep(1000000);
+			test_langugetxt_res = test_languge(TEXT_DIR, TEXT_DIR_MD5, NO_LANG);
+			usleep(1000000);
+			test_langugevid_res = test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG);
+
+			ND_printlog(ND_LOG_INFO, "test_langugetxt_res:%d, test_langugevid_res:%d",test_langugetxt_res, test_langugevid_res);
+			if (test_langugetxt_res == FAILED) {
+				latest_bittest.language_file_status = FAILED;
 				exec_system_command(VAR_COMMAND_error_in_languge_files, "/system/bin/ate_commands.sh");
 				try_write_file(LATEST_BIT_STATUS, "0");  //this fails the BIT status
 			}
 
-			if (test_languge(VIDEO_DIR, VIDEO_DIR_MD5, NO_LANG) == FAILED)
+			if (test_langugevid_res == FAILED) {
+				latest_bittest.language_video_status = FAILED;
 				exec_system_command(VAR_COMMAND_error_in_video_files, "/system/bin/ate_commands.sh");
 			}
+			else {
+				latest_bittest.language_video_status = PASSED;
+			}
+			
+		}
 	}
 	return 0;
 }
 
-
-void create_sn_pincode()
-{
-	unsigned short length;
-	char buffer[MAX_SYSTEM_COMMAND_LEN] = {0};
-	char sn_buffer[MAX_SYSTEM_COMMAND_LEN] = {0};
-
-	read_file_data_no_space(SERIAL_NUMBER_FACTORY, buffer, MAX_SYSTEM_COMMAND_LEN);
-	length = strlen(buffer);
-	calculate_pincodelen_digits_code(sn_buffer, buffer, length);
-	create_file_if_needed(SERIAL_NUMBER_FILE);
-	try_write_file(SERIAL_NUMBER_FILE, sn_buffer);
-}
 
 void *pincode_handler(void *socket_desc)
 {
@@ -1310,20 +1390,73 @@ void *pincode_handler(void *socket_desc)
 	char buffer[BUF_LEN];
 
 	ND_printlog(ND_LOG_INFO, "pincode handler called OK");
-	create_sn_pincode();
+	while (1) {
 	fd = inotify_init();
 	wd = inotify_add_watch(fd, RECIVED_PINCODE_NOTIFY_API, IN_MODIFY | IN_CREATE | IN_DELETE);
-	while (1) {
+	
 		length = read(fd, buffer, BUF_LEN);
 		if  (i< length) {
         		struct inotify_event *event =(struct inotify_event *) &buffer[i];
-			if (current_timestamp() - bit_time < MIN_TIME_BETWEEN_NOTIFICATIONS)
-				continue;
 
-			bit_time = current_timestamp();
 			ND_printlog(ND_LOG_INFO, "pincode entered, check if pincode is valid");
 			test_pincode_validity();
 			}
+    	(void) inotify_rm_watch(fd, wd);
+    	(void) close(fd);
+	}
+	return 0;
+}
+
+
+#define MIN_TIME_BETWEEN_WD 500
+void *greenled_handler(void *socket_desc)
+{
+	char read1[SHORT_FILE_LEN] = {0};
+	char read2[SHORT_FILE_LEN] = {0};
+	char read3[SHORT_FILE_LEN] = {0};
+	FILE *fptr;
+
+    	//create result file if does not exists
+    	if ((fptr = fopen(WATCHDOGTEST_FILE, "rb+")) == NULL) {
+		ND_printlog(ND_LOG_INFO, "file %s not exist\n", WATCHDOGTEST_FILE);
+		if ((fptr = fopen(WATCHDOGTEST_FILE, "wb")) == NULL) {
+	    		PRINTE("error open fw_result_file");
+		}  
+		fprintf(fptr,"%d",0);
+    		fclose(fptr);
+    	}
+    	else {
+		ND_printlog(ND_LOG_INFO, "file %s exist\n", WATCHDOGTEST_FILE);
+		fclose(fptr);
+    	}
+
+	ND_printlog(ND_LOG_INFO, "greenled handler called OK");
+	while (1) {
+			if (!check_if_file_exists(GREEN_LED_FILE)) {
+				usleep(UDELAY_GREEN_LED_READ);
+				continue;
+			}
+			read_file_data_no_space(GREEN_LED_FILE, read1, SHORT_FILE_LEN);
+			if (strcmp(read1, read2) != 0) {
+				sprintf(read2,"%s",read1);
+				ND_printlog(ND_LOG_INFO, "greenled changed: %s", read1);
+				read_file_data_no_space("/sys/devices/soc0/filling_station-pm/wpc_stby/value", read3, SHORT_FILE_LEN);
+				if (strcmp(read3,"1") == 0 && strcmp(read1,"0") == 0) {	
+					ND_printlog(ND_LOG_INFO, "green led zero while wc enabled");		
+					exec_system_command(VAR_COMMAND_greenled_zero_while_wc_on, "/system/bin/ate_commands.sh");		
+				}			
+			}
+			usleep(UDELAY_GREEN_LED_READ);
+	}
+	return 0;
+}
+
+void *watchdog_handler(void *socket_desc)
+{
+	ND_printlog(ND_LOG_INFO, "greenled handler called OK");
+	while (1) {
+			exec_system_command(VAR_COMMAND_wd_keepalive, "/system/bin/ate_commands.sh");
+			usleep(UDELAY_KEEPALIVE);
 	}
 	return 0;
 }

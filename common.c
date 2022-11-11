@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/file.h>
+#include <time.h>
 #include "sha256/sha-256.h"
 #ifndef C_COMPILE
 #include <ND_LogLibrary.h>
@@ -294,22 +295,6 @@ unsigned short calc_crc(char *full_buffer, unsigned short length)
 	return crc_calculated;
 }
 
-unsigned short calc_crc8(char *data, size_t len)
-{
-    uint8_t crc = 0xff;
-    size_t i, j;
-    for (i = 0; i < len; i++) {
-        crc ^= data[i];
-        for (j = 0; j < 8; j++) {
-            if ((crc & 0x80) != 0)
-                crc = (uint8_t)((crc << 1) ^ 0x31);
-            else
-                crc <<= 1;
-        }
-    }
-    return crc;
-}
-
 /** @brief check if CRC passed, read CRC from file and compare to the calculated value
  */
 int crc_passed(char *filename, uint8_t type)
@@ -319,7 +304,7 @@ int crc_passed(char *filename, uint8_t type)
 	char full_buffer[MAX_FILE_SIZE] = {0};
 	unsigned short crc_calculated = 0xFFFF, length = 0;
 	long crc_expected = 0;
-
+	
 	// open the file for reading
 	FILE *file = fopen(filename, "r");
 	// make sure the file opened properly
@@ -349,7 +334,7 @@ int crc_passed(char *filename, uint8_t type)
 	length = strlen(full_buffer);
 	crc_calculated = calc_crc(full_buffer, length);	
 	ND_printlog(ND_LOG_INFO, "\n%s crc_calculated result: %d\n", filename, crc_calculated);
-//now read expected CRC
+	//now read expected CRC
 	free(buffer);
 	free(buffer_filtered);
 	
@@ -402,24 +387,15 @@ void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
 
 /** @brief calculate pincode
  */
-void calculate_pincode(char* buffer_calculated_valid_pincode_result, const char* buffer_snp, int length)
+void calculate_pincode(char* buffer_calculated_valid_pincode_result, int length)
 {
-	uint8_t hash[32];
+	char tmp[MAX_SYSTEM_COMMAND_LEN] = {0};
+	time_t t = time(NULL);
+	struct tm tm = *localtime(&t);
 
-	calc_sha_256(hash, buffer_snp, length);
-	calculate_pincodelen_digits_code(buffer_calculated_valid_pincode_result, hash, 32);
-	ND_printlog(ND_LOG_INFO, "%d digits crc is:%s\n", PINCODE_MAX_LEN, buffer_calculated_valid_pincode_result);
-}
-
-void calculate_pincodelen_digits_code(char *result, const buffer, int length)
-{
-	unsigned short crc_calculated_16_itt, crc_calculated_8;
-	crc_calculated_16_itt = calc_crc(buffer, length);
-	crc_calculated_8 = calc_crc8(buffer, length);
-	sprintf(result, "%d%d", crc_calculated_16_itt, crc_calculated_8);
-	result[PINCODE_MAX_LEN] = '\0';
-	while (strlen(result) < PINCODE_MAX_LEN)
-		strcat(result, "0");
+	nonvolotile_parse_parameter("main_sn", tmp, sizeof(tmp) / sizeof(char));
+	tmp[strlen(tmp) - 1] = '\0';
+	sprintf(buffer_calculated_valid_pincode_result, "%s%02d", tmp + strlen(tmp) - 6, tm.tm_mday);//get 6 last digits 
 }
 
 
@@ -467,16 +443,14 @@ void read_file(const char *filename, char *reply, size_t buffer_size)
     	if(fp) {
         	fseek(fp, 0, SEEK_END);
         	fsize = ftell(fp);
-		if (fsize > buffer_size)
+		if (fsize > buffer_size) {
+			fclose(fp);
 			return;
+		}
         	rewind(fp);
         	fread(reply, 1, fsize, fp);
         	fclose(fp);
     	}
-
-	ptr = strstr(reply, END_STRING);
-	if (ptr!= NULL)
-		*ptr = '\0';
 }
 
 void nonvolotile_read()
@@ -490,20 +464,20 @@ void nonvolotile_read()
 static int handler_nonvolotileparse(void* user, const char* section, const char* name,
 		   const char* value)
 {
-    nonvolotile_configuration* pconfig = (nonvolotile_configuration*)user;
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     if (MATCH("", "main_sn")) {
-        pconfig->main_sn = strdup(value);
-	sprintf(nonvolotile_config1.main_sn, "%s", value);
+	sprintf(nonvolotile_config.main_sn, "%s", value);
     } else if (MATCH("", "main_pn")) {
-        pconfig->main_pn = strdup(value);
+ 	sprintf(nonvolotile_config.main_pn, "%s", value);
     } else if (MATCH("", "som_sn")) {
-        pconfig->som_sn = strdup(value);
+	sprintf(nonvolotile_config.som_sn, "%s", value);
     } else if (MATCH("", "cradle_sn")) {
-        pconfig->cradle_sn = strdup(value);
+	sprintf(nonvolotile_config.cradle_sn, "%s", value);
     } else if (MATCH("", "ftu_date")) {
-        pconfig->ftu_date = strdup(value);
+	sprintf(nonvolotile_config.ftu_date, "%s", value);
+    } else if (MATCH("", "crc")) {
+	sprintf(nonvolotile_config.crc, "%s", value);
     } else {
         return 0;  /* unknown section/name, error */
     }
@@ -513,19 +487,20 @@ static int handler_nonvolotileparse(void* user, const char* section, const char*
 
 void init_nonvolotile_var()
 {
-	nonvolotile_config.main_sn = strdup(END_STRING);
-	nonvolotile_config.main_pn = strdup(END_STRING);
-	nonvolotile_config.som_sn = strdup(END_STRING);
-	nonvolotile_config.cradle_sn = strdup(END_STRING);
-	nonvolotile_config.ftu_date = strdup(END_STRING);
+	printf("initilizing data\r\n");
+	sprintf(nonvolotile_config.main_sn, "%s", END_STRING);
+	sprintf(nonvolotile_config.main_pn, "%s", END_STRING);
+	sprintf(nonvolotile_config.som_sn, "%s", END_STRING);
+	sprintf(nonvolotile_config.cradle_sn, "%s", END_STRING);
+	sprintf(nonvolotile_config.ftu_date, "%s", END_STRING);
+	sprintf(nonvolotile_config.crc, "%s", END_STRING);
 }
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size)
 {
 	int err = 0;
 
-	init_nonvolotile_var();
-	sprintf(reply, "%s", "");
 	err = ini_parse(NONVOLOTILE_USERDATA_FILE, handler_nonvolotileparse, &nonvolotile_config); 
+	printf("error : %d\r\n", err);	
 	if (err == 1) {
 		printf("error parsing data:%d\r\n", err);
 		return;
@@ -542,6 +517,8 @@ void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buff
 		sprintf(reply, "%s", nonvolotile_config.cradle_sn);
 	else if (strcmp(parameter,"ftu_date") == 0)
 		sprintf(reply, "%s", nonvolotile_config.ftu_date);
+	else if (strcmp(parameter,"crc") == 0)
+		sprintf(reply, "%s", nonvolotile_config.crc);
 	else
 		sprintf(reply, "%s", "");
 	
@@ -551,6 +528,7 @@ void nonvolotile_readall(char *reply, size_t buffer_size)
 {
 	nonvolotile_read();
 	read_file(NONVOLOTILE_USERDATA_FILE, reply, buffer_size);
+	reply[EMPTY_NONVOLOTILE_MAXLEN] = '\0';
 }
 
 void nonvolotile_delete()
@@ -561,39 +539,123 @@ void nonvolotile_delete()
 	usleep(USEC_NONVOLOTILE_ACTION);
 }
 
+unsigned short nonvolotile_extract_crc()
+{
+	unsigned short crc;
+	int tmp;
+	char buf[MAX_CONF_SIZE] = {0};
+	nonvolotile_parse_parameter("crc", buf, MAX_CONF_SIZE );
+	str2int(&tmp, buf, MAX_ALLOWED_TRAILING_SPACES, sizeof(buf) / sizeof(char));
+	crc = (unsigned short)tmp;
+	ND_printlog(ND_LOG_INFO, "nonvolotile crc value written in file: %hu\r\n", crc);
+	return crc;
+}
+
+unsigned short nonvolotile_calculate_crc()
+{
+	int err = 0;
+	unsigned short calculated_crc = 0;
+	char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char tmp[VAR_MAXLEN] = {0};
+
+	nonvolotile_config.main_sn[0] = '\0';
+	nonvolotile_config.main_pn[0] = '\0';
+	nonvolotile_config.som_sn[0] = '\0';
+	nonvolotile_config.cradle_sn[0] = '\0';
+	nonvolotile_config.ftu_date[0] = '\0';
+	nonvolotile_config.crc[0] = '\0';
+	nonvolotile_read();
+	nonvolotile_parse_parameter("main_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("main_pn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("som_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	buft[0] = '\0'; 
+
+	buf[0] = '\0';
+	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
+	strcat(buf,tmp);
+	sprintf(tmp, "main_pn=%s", nonvolotile_config.main_pn);
+	strcat(buf,tmp);
+	sprintf(tmp, "som_sn=%s", nonvolotile_config.som_sn);
+	strcat(buf,tmp);
+	sprintf(tmp, "cradle_sn=%s", nonvolotile_config.cradle_sn);
+	strcat(buf,tmp);
+	sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+	strcat(buf,tmp);
+	sprintf(buft, "%s", filter_crc_string(buf, FILE_INI, strlen(buf)));
+	calculated_crc = calc_crc(buft, strlen(buft));
+	ND_printlog(ND_LOG_INFO, "nonvolotile calculated_crc: %hu\r\n", calculated_crc);
+	
+	return calculated_crc;
+}
+
 void nonvolotile_update(const char* parameter, const char* value)
 {
 	int err = 0;
-	char buf[EMPTY_NONVOLOTILE_MAXLEN];
+	char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char tmp[VAR_MAXLEN] = {0};
 	if (strlen(value)  > EMPTY_NONVOLOTILE_MAXLEN) {
 		printf ("value too long\r\n");
 		return;
 	}
-	init_nonvolotile_var();
-
-	ini_parse(NONVOLOTILE_USERDATA_FILE, handler_nonvolotileparse, &nonvolotile_config); 
+	nonvolotile_config.main_sn[0] = '\0';
+	nonvolotile_config.main_pn[0] = '\0';
+	nonvolotile_config.som_sn[0] = '\0';
+	nonvolotile_config.cradle_sn[0] = '\0';
+	nonvolotile_config.ftu_date[0] = '\0';
+	nonvolotile_config.crc[0] = '\0';
+	nonvolotile_read();
+	nonvolotile_parse_parameter("main_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("main_pn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("som_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
+	buft[0] = '\0'; 
+	printf ("parameter:%s value:%s\r\n", parameter, value);
 	if (strcmp(parameter,"main_sn") == 0)
-		nonvolotile_config.main_sn = strdup(value);
+		sprintf(nonvolotile_config.main_sn, "%s\n", value);
 	else if (strcmp(parameter,"main_pn") == 0)
-		nonvolotile_config.main_pn = strdup(value);
+		sprintf(nonvolotile_config.main_pn, "%s\n", value);
 	else if (strcmp(parameter,"som_sn") == 0)
-		nonvolotile_config.som_sn = strdup(value);
+		sprintf(nonvolotile_config.som_sn, "%s\n", value);
 	else if (strcmp(parameter,"cradle_sn") == 0)
-		nonvolotile_config.cradle_sn = strdup(value);
+		sprintf(nonvolotile_config.cradle_sn, "%s\n", value);
 	else if (strcmp(parameter,"ftu_date") == 0)
-		nonvolotile_config.ftu_date = strdup(value);
+		sprintf(nonvolotile_config.ftu_date, "%s\n", value);
+	else if (strcmp(parameter,"crc") == 0)
+		sprintf(nonvolotile_config.crc, "%s\n", value);
 	else { 
 		printf("no such parameter\r\n");
 		return;
 	}
 
-	sprintf(buf, "main_sn=%s\rmain_pn=%s\rsom_sn=%s\rcradle_sn=%s\rftu_date=%s\r",nonvolotile_config.main_sn, \
-			nonvolotile_config.main_pn,nonvolotile_config.som_sn, \
-			nonvolotile_config.cradle_sn,nonvolotile_config.ftu_date);
-
+	buf[0] = '\0';
+	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
+	strcat(buf,tmp);
+	sprintf(tmp, "main_pn=%s", nonvolotile_config.main_pn);
+	strcat(buf,tmp);
+	sprintf(tmp, "som_sn=%s", nonvolotile_config.som_sn);
+	strcat(buf,tmp);
+	sprintf(tmp, "cradle_sn=%s", nonvolotile_config.cradle_sn);
+	strcat(buf,tmp);
+	sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+	strcat(buf,tmp);
+	sprintf(buft,"%s", buf);
+	if (strcmp(parameter,"crc") != 0) {
+		filter_crc_string(buft, FILE_INI, strlen(buft));
+		sprintf(nonvolotile_config.crc,"%hu\n", calc_crc(buft, strlen(buft)));
+	}
+	sprintf(tmp, "crc=%s", nonvolotile_config.crc);
+	strcat(buf,tmp);
+	strcat(buf,"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
 	safe_write_file_stream(NONVOLOTILE_USERDATA_FILE, buf);
 	usleep(USEC_NONVOLOTILE_ACTION);
-	//exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
+	exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
 	usleep(USEC_NONVOLOTILE_ACTION);
-	printf("saved data:\r\n %s", buf);
+	printf("saved data is:\n %s\r\n", buf);
 }

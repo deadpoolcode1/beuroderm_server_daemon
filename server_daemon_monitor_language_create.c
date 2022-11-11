@@ -32,7 +32,12 @@ int exec_system_command(const char * parameter, const char* process_to_execute)
 	return 0;
 }
 
-
+/** @brief check if file exists
+ */
+int file_exists(char *filename)
+{
+        return access(filename, F_OK);
+}
 
 int main(void)
 {
@@ -72,6 +77,9 @@ void create_md5_file(char *dir_name, char *md5_dir_name)
 	    ND_printlog(ND_LOG_INFO, "md5 calculate for: %s\n", command);
 	    exec_system_command(command, MD5_SCRIPT);//write md5 to temp file
 	    usleep(DELAY_PER_MD5_CALC);
+	    while (file_exists(MD5_FILE) < 0) {
+	    }
+	    usleep(1000000);
 	    //read temp file for md5
 	    md5_calculated[0] = '\0';
 	    read_file_data(MD5_FILE, md5_calculated, MAX_SYSTEM_COMMAND_LEN);

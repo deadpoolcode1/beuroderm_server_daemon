@@ -32,8 +32,13 @@
 #define TEXT_DIR_MD5 TEXT_DIR"md5"
 #define VIDEO_DIR LANGUGE_DIR"VIDEO/"
 #define VIDEO_DIR_MD5 VIDEO_DIR"md5"
+
+#define AUDIO_DIR "/system/media/audio/"
+#define AUDIO_DIR_MD5 AUDIO_DIR"md5"
+#define AUDIO_DIR_FILES "/system/media/audio/alarms/"
+
 #define MD5_SCRIPT "/system/bin/md5_calc.sh"
-#define DELAY_PER_MD5_CALC 300000
+#define DELAY_PER_MD5_CALC 2000000
 #define REGIMEN_UPDATE_NOTIFICATION_FILE "/data/regedit"
 #define SERIAL_NUMBER_FILE "/data/main_snp"
 #define SERIAL_NUMBER_FACTORY "/data/main_sn"
@@ -51,8 +56,11 @@
 #define NONVOLOTILE_WRITE_SCRIPT "/system/bin/write_nonvolotile.sh"
 #define END_STRING "zzz"
 #define MAX_CONF_SIZE 8192
-#define EMPTY_NONVOLOTILE "main_sn=zzz\rmain_pn=zzz\rsom_sn=zzz\rcradle_sn=zzz\rftu_date=zzz\r0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-#define EMPTY_NONVOLOTILE_MAXLEN 200
+#define EMPTY_NONVOLOTILE "main_sn=zzz\nmain_pn=zzz\nsom_sn=zzz\ncradle_sn=zzz\nftu_date=1970-01-01:00:00:00\ncrc=zzz\n000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+#define EMPTY_NONVOLOTILE_MAXLEN 500
+#define VAR_MAXLEN 40
+#define DEFAULT_PINCODE "06120000"
+
 enum {
 	STR2INT_SUCCESS,
 	STR2INT_OVERFLOW,
@@ -67,16 +75,7 @@ enum {
 	OPEN_FILE_READ_WRITE
 };
 
-typedef struct {
-	char* main_sn;
-	char* main_pn;
-	char* som_sn;
-	char* cradle_sn;
-	char* ftu_date;
-} nonvolotile_configuration;
-
-nonvolotile_configuration nonvolotile_config;
-
+#define NONVOLOTILE_CRC_MAXLEN 10
 
 typedef struct {
 	char main_sn[32];
@@ -84,9 +83,10 @@ typedef struct {
 	char som_sn[32];
 	char cradle_sn[32];
 	char ftu_date[32];
-} nonvolotile_configuration1;
+	char crc[NONVOLOTILE_CRC_MAXLEN];
+} nonvolotile_configuration;
 
-nonvolotile_configuration1 nonvolotile_config1;
+nonvolotile_configuration nonvolotile_config;
 
 int check_snprintf(int ret_value, int max_length);
 int str2int(int *out, char *s, int max_spaces, int size_of_string);
@@ -99,18 +99,18 @@ int crc_passed(char *filename, uint8_t type);
 bool parse_long(const char *str, long *val);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 unsigned short calc_crc(char *buffer, unsigned short length);
-unsigned short calc_crc8(char *data, size_t len);
 bool check_if_file_exists(const char* filename);
 void create_file_if_needed(const char* filename);
 int read_file_data(char *filename, char *buffer, size_t buffer_size);
 void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size);
-void calculate_pincodelen_digits_code(char *result, const buffer, int length);
 char * trim(char * s);
-void calculate_pincode(char* buffer_calculated_valid_pincode_result, const char* buffer_snp, int length);
+void calculate_pincode(char* buffer_calculated_valid_pincode_result, int length);
 void nonvolotile_readall(char *reply, size_t buffer_size);
 void nonvolotile_delete();
 void nonvolotile_update(const char* parameter, const char* value);
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
+unsigned short nonvolotile_calculate_crc();
+unsigned short nonvolotile_extract_crc();
 
 #define FREE(p) \
 do \

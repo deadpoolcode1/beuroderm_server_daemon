@@ -21,13 +21,14 @@
 #define BIT_LANGUAGE_VIDEO "BIT_LANG_VIDEO"
 #define BIT_SERIAL_NUMBER "BIT_SERIAL_NUMBER"
 #define BIT_U14_FUNCTIONALITY "BIT_U14_FUNCTIONALITY"
+#define BIT_AUDIO_FILES "BIT_AUDIO_FILES"
 #define BIT_FWCRC "BIT_FWCRC"
 #define BIT_APKCRC "BIT_APKCRC"
 #define BIT_TIMESTAMP "BIT_TIMESTAMP"
 #define SOCKET_MESSAGE_MAX_LENGTH 5000
 #define REPLY_ACK "ACK\n"
 #define REPLY_NACK "NACK\n"
-#define API_VERSION "8"
+#define API_VERSION "9"
 #define MAX_FILE_SIZE 10000
 #define CRC_STRING_JSON "\"crc\":\""
 #define CRC_STRING_INI "crc="
@@ -112,9 +113,17 @@
 #define VAR_COMMAND_error_in_languge_files "571"
 #define VAR_COMMAND_error_in_video_files "572"
 #define VAR_COMMAND_error_in_serial_file "573" 
+#define VAR_COMMAND_greenled_zero_while_wc_on "574" 
 #define USEC_I2C_RETRY 100000
 #define I2C_MAX_RETRY 3
 #define LATEST_BIT_STATUS "/data/latest_bit_status"
+#define UDELAY_WC_IS_ON 300000
+#define WATCHDOGTEST_FILE "/data/watchdog_test"
+#define GREEN_LED_FILE "/sys/devices/soc0/filling_station-pm/wpc_led_g/value"
+#define UDELAY_GREEN_LED_READ 100000
+#define SHORT_FILE_LEN 3
+#define VAR_COMMAND_wd_keepalive "575" 
+#define UDELAY_KEEPALIVE 30000000
 
 typedef struct {
 	char* year;
