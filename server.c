@@ -36,7 +36,7 @@
 
 timer_t timer_id_rtc_functional;
 timer_t timer_id_suspend_to_ram;
-
+timer_t timer_id_update_time;
 
 struct bittest_info {
 	uint8_t i2c_pmic_status;                /*!< i2c0 0x36 */
@@ -64,10 +64,11 @@ struct bittest_info {
 	char timestamp [STD_FILE_LENGTH];
 	uint8_t bit_status;
 	uint8_t bit_test_full_completion;
+	uint8_t rtc_time_update_recentlly;
 };
 
 alarms_struct alarms;
-struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED, BIT_NOT_PERFORMED};
+struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED, BIT_NOT_PERFORMED, false};
 char * return_current_bit_status(char *update_string, bool print_result);
 
 int exec_system_command(const char * parameter, const char* process_to_execute);
@@ -102,7 +103,10 @@ static void check_rtc_progress(char *filebufferl, size_t size_filebufferl)
                latest_bittest.rtc_functional_status = PASSED;
        else
                latest_bittest.rtc_functional_status = FAILED;
-
+       if (latest_bittest.rtc_time_update_recentlly) {
+		ND_printlog(ND_LOG_INFO, "date updated recentlly, due to that passing this test\n");
+		latest_bittest.rtc_functional_status = PASSED;
+	}
        return;
 handler_timer_failedb:
         latest_bittest.rtc_functional_status = PASSED;
@@ -126,10 +130,18 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 			goto handler_timer_failed;
 		if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
 			goto handler_timer_failed;
+		ND_printlog(ND_LOG_INFO, "time_now:%lu\n", time_now);
+		ND_printlog(ND_LOG_INFO, "latest_bittest.store_rtc_time_data:%lu\n", latest_bittest.store_rtc_time_data);
 		if (time_now  > latest_bittest.store_rtc_time_data)
 			latest_bittest.rtc_functional_status = PASSED;
 		else
 			latest_bittest.rtc_functional_status = FAILED;
+
+		if (latest_bittest.rtc_time_update_recentlly) {
+			ND_printlog(ND_LOG_INFO, "date updated recentlly, due to that passing this test\n");
+			latest_bittest.rtc_functional_status = PASSED;
+		}
+
 	} else if (*tidp == timer_id_suspend_to_ram) {
 		ND_printlog(ND_LOG_INFO, "suspend to RAM\n");
 		try_write_file("/sys/devices/soc0/filling_station-pm/disp_pus_en/value", "0");
@@ -145,8 +157,10 @@ static void handler_timer(int sig, siginfo_t *si, void *uc)
 		try_write_file("/sys/devices/soc0/filling_station-pm/rst_ctp/value", "1");
 		exec_system_command(VAR_SEND_KEYCODE_WAKEUP, "/system/bin/ate_commands.sh");
 		return;
+	} else if (*tidp == timer_id_update_time) {
+		latest_bittest.rtc_time_update_recentlly = false;
+		return;
 	}
-
 	if ((return_current_bit_status(return_reply, true)) == NULL)
 		ND_printlog(ND_LOG_ERROR, "error, bit test failed to perform\n");
 
@@ -397,6 +411,21 @@ void create_suspend_to_ram_timer()
 		ND_printlog(ND_LOG_ERROR, "error, failed creating timer\n");
 }
 
+
+/** @brief create timer, used for letting CS awerness of time recentlly update, thus effecting RTC test
+ */
+void create_date_update_timer()
+{
+	if (timer_id_update_time != NULL) {
+		if (timer_delete(timer_id_update_time)) {
+			ND_printlog(ND_LOG_ERROR, "error, failed deleting timer\n");
+			return;
+		}
+	}
+
+	if (make_timer("Date Updated Timer", &timer_id_update_time, 30, 0))
+		ND_printlog(ND_LOG_ERROR, "error, failed creating timer\n");
+}
 
 
 /** @brief create timer, used for chacking RTC time is progressing
@@ -807,6 +836,12 @@ void *socket_handler(void *test)
 	return (void *)0;
 }
 
+void update_time_recentlly()
+{
+	latest_bittest.rtc_time_update_recentlly = true;
+	create_date_update_timer();
+}
+
 /** @brief handle socket connection opened.
  *  parse message recived, perform needed actions
  *  and reply accordinglly
@@ -955,6 +990,7 @@ void *connection_handler(void *socket_desc)
 			/*action is writing time
 			example: ./send.o 10.0.0.36 write_time:060911052016.00
 			*/
+			update_time_recentlly();
 			if (check_snprintf(snprintf(commandFile.value, YEAR_STRING_LEN, "%s", strstr(client_message, ".") - 4), sizeof(commandFile.value) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			if (str2int(&date_year, commandFile.value, YEAR_STRING_LEN, sizeof(commandFile.value) / sizeof(char)) != STR2INT_SUCCESS)
