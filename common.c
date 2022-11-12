@@ -526,15 +526,16 @@ void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buff
 
 void nonvolotile_readall(char *reply, size_t buffer_size)
 {
-	m_exec_system_command2("eval \"dd if=/dev/block/mmcblk0 of=/data/boot_args bs=512 skip=1536 count=1\" | cat /data/boot_args", reply);
+	m_exec_system_command2("eval \"dd if=/dev/block/mmcblk0 of=/data/boot_args bs=512 skip=1536 count=1\" && cat /data/boot_args", reply);
 	reply[EMPTY_NONVOLOTILE_MAXLEN] = '\0';
 }
 
 void nonvolotile_delete()
 {
-	printf ("write to file%s\r\n data:%s\r\n", NONVOLOTILE_USERDATA_FILE, EMPTY_NONVOLOTILE);
-	safe_write_file_stream(NONVOLOTILE_USERDATA_FILE, EMPTY_NONVOLOTILE);
-	exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
+	char reply[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char command[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	sprintf(command,"%s%s%s","echo \"",EMPTY_NONVOLOTILE ,"\" > /data/boot_args && dd if=/data/boot_args of=/dev/block/mmcblk0 bs=512 seek=1536 count=1");
+	m_exec_system_command2(command,reply);
 	usleep(USEC_NONVOLOTILE_ACTION);
 }
 
