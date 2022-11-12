@@ -526,8 +526,7 @@ void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buff
 
 void nonvolotile_readall(char *reply, size_t buffer_size)
 {
-	nonvolotile_read();
-	read_file(NONVOLOTILE_USERDATA_FILE, reply, buffer_size);
+	m_exec_system_command2("eval \"dd if=/dev/block/mmcblk0 of=/data/boot_args bs=512 skip=1536 count=1\" | cat /data/boot_args", reply);
 	reply[EMPTY_NONVOLOTILE_MAXLEN] = '\0';
 }
 
@@ -658,4 +657,28 @@ void nonvolotile_update(const char* parameter, const char* value)
 	exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
 	usleep(USEC_NONVOLOTILE_ACTION);
 	printf("saved data is:\n %s\r\n", buf);
+}
+
+
+int m_exec_system_command2(const char * command, char* reply)
+{
+   char buffer[REPLY_STRING_LENGTH];
+
+   // Open pipe to file
+   FILE* pipe = popen(command, "r");
+   if (!pipe) {
+      return 1;
+   }
+
+   // read till end of process:
+   while (!feof(pipe)) {
+
+      // use buffer to read and add to result
+      if (fgets(buffer, 128, pipe) != NULL)
+         strcat(reply, buffer);
+      ND_printlog(ND_LOG_INFO, "buf:%s\n", buffer);
+   }
+
+   pclose(pipe);
+   return 0;
 }

@@ -112,6 +112,7 @@ void nonvolotile_update(const char* parameter, const char* value);
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
 unsigned short nonvolotile_calculate_crc();
 unsigned short nonvolotile_extract_crc();
+int m_exec_system_command2(const char * command, char* reply);
 
 #define FREE(p) \
 do \
