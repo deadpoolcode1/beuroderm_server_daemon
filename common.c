@@ -453,12 +453,6 @@ void read_file(const char *filename, char *reply, size_t buffer_size)
     	}
 }
 
-void nonvolotile_read()
-{
-	exec_system_command("", NONVOLOTILE_READ_SCRIPT);
-	usleep(USEC_NONVOLOTILE_ACTION);
-}
-
 /** @brief handles reading ini file for start year parameter
  */
 static int handler_nonvolotileparse(void* user, const char* section, const char* name,
@@ -616,21 +610,6 @@ unsigned short nonvolotile_calculate_crc()
 	char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char tmp[VAR_MAXLEN] = {0};
-
-	nonvolotile_config.main_sn[0] = '\0';
-	nonvolotile_config.main_pn[0] = '\0';
-	nonvolotile_config.som_sn[0] = '\0';
-	nonvolotile_config.cradle_sn[0] = '\0';
-	nonvolotile_config.ftu_date[0] = '\0';
-	nonvolotile_config.crc[0] = '\0';
-	nonvolotile_read();
-	nonvolotile_parse_parameter("main_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("main_pn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("som_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	buft[0] = '\0'; 
 
 	buf[0] = '\0';
 	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
