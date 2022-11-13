@@ -524,6 +524,30 @@ void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buff
 	
 }
 
+void nonvolotile_parse_parameter_string(const char* full_String, const char* parameter, char* reply)
+{
+	int err = 0;
+
+	err = ini_parse_string(full_String, handler_nonvolotileparse, &nonvolotile_config); 
+
+	if (strcmp(parameter,"main_sn") == 0) {
+		sprintf(reply, "%s", nonvolotile_config.main_sn);
+	}
+	else if (strcmp(parameter,"main_pn") == 0)
+		sprintf(reply, "%s", nonvolotile_config.main_pn);
+	else if (strcmp(parameter,"som_sn") == 0)
+		sprintf(reply, "%s", nonvolotile_config.som_sn);
+	else if (strcmp(parameter,"cradle_sn") == 0)
+		sprintf(reply, "%s", nonvolotile_config.cradle_sn);
+	else if (strcmp(parameter,"ftu_date") == 0)
+		sprintf(reply, "%s", nonvolotile_config.ftu_date);
+	else if (strcmp(parameter,"crc") == 0)
+		sprintf(reply, "%s", nonvolotile_config.crc);
+	else
+		sprintf(reply, "%s", "");
+	
+}
+
 void nonvolotile_readall(char *reply, size_t buffer_size)
 {
 	m_exec_system_command2("eval \"dd if=/dev/block/mmcblk0 of=/data/boot_args bs=512 skip=1536 count=1\" && cat /data/boot_args", reply);
@@ -549,6 +573,40 @@ unsigned short nonvolotile_extract_crc()
 	crc = (unsigned short)tmp;
 	ND_printlog(ND_LOG_INFO, "nonvolotile crc value written in file: %hu\r\n", crc);
 	return crc;
+}
+
+
+void read_current_nonvolotile_data()
+{
+	char reply[MAX_CONF_SIZE] = {0};
+
+	nonvolotile_readall(reply, EMPTY_NONVOLOTILE_MAXLEN);
+	nonvolotile_parse_parameter_string(reply, "main_sn", reply);
+	nonvolotile_parse_parameter_string(reply, "main_pn", reply);
+	nonvolotile_parse_parameter_string(reply, "som_sn", reply);
+	nonvolotile_parse_parameter_string(reply, "cradle_sn", reply);
+	nonvolotile_parse_parameter_string(reply, "ftu_date", reply);
+	nonvolotile_parse_parameter_string(reply, "crc", reply);
+}
+
+void update_relevant_nonvolotile_data_field(const char* parameter, const char* value)
+{
+	if (strcmp(parameter,"main_sn") == 0)
+		sprintf(nonvolotile_config.main_sn, "%s\n", value);
+	else if (strcmp(parameter,"main_pn") == 0)
+		sprintf(nonvolotile_config.main_pn, "%s\n", value);
+	else if (strcmp(parameter,"som_sn") == 0)
+		sprintf(nonvolotile_config.som_sn, "%s\n", value);
+	else if (strcmp(parameter,"cradle_sn") == 0)
+		sprintf(nonvolotile_config.cradle_sn, "%s\n", value);
+	else if (strcmp(parameter,"ftu_date") == 0)
+		sprintf(nonvolotile_config.ftu_date, "%s\n", value);
+	else if (strcmp(parameter,"crc") == 0)
+		sprintf(nonvolotile_config.crc, "%s\n", value);
+	else { 
+		printf("no such parameter\r\n");
+		return;
+	}
 }
 
 unsigned short nonvolotile_calculate_crc()
@@ -592,48 +650,10 @@ unsigned short nonvolotile_calculate_crc()
 	return calculated_crc;
 }
 
-void nonvolotile_update(const char* parameter, const char* value)
+void nonvolotile_update_crc()
 {
-	int err = 0;
 	char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
-	char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char tmp[VAR_MAXLEN] = {0};
-	if (strlen(value)  > EMPTY_NONVOLOTILE_MAXLEN) {
-		printf ("value too long\r\n");
-		return;
-	}
-	nonvolotile_config.main_sn[0] = '\0';
-	nonvolotile_config.main_pn[0] = '\0';
-	nonvolotile_config.som_sn[0] = '\0';
-	nonvolotile_config.cradle_sn[0] = '\0';
-	nonvolotile_config.ftu_date[0] = '\0';
-	nonvolotile_config.crc[0] = '\0';
-	nonvolotile_read();
-	nonvolotile_parse_parameter("main_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("main_pn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("som_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	buft[0] = '\0'; 
-	printf ("parameter:%s value:%s\r\n", parameter, value);
-	if (strcmp(parameter,"main_sn") == 0)
-		sprintf(nonvolotile_config.main_sn, "%s\n", value);
-	else if (strcmp(parameter,"main_pn") == 0)
-		sprintf(nonvolotile_config.main_pn, "%s\n", value);
-	else if (strcmp(parameter,"som_sn") == 0)
-		sprintf(nonvolotile_config.som_sn, "%s\n", value);
-	else if (strcmp(parameter,"cradle_sn") == 0)
-		sprintf(nonvolotile_config.cradle_sn, "%s\n", value);
-	else if (strcmp(parameter,"ftu_date") == 0)
-		sprintf(nonvolotile_config.ftu_date, "%s\n", value);
-	else if (strcmp(parameter,"crc") == 0)
-		sprintf(nonvolotile_config.crc, "%s\n", value);
-	else { 
-		printf("no such parameter\r\n");
-		return;
-	}
-
 	buf[0] = '\0';
 	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
 	strcat(buf,tmp);
@@ -645,25 +665,40 @@ void nonvolotile_update(const char* parameter, const char* value)
 	strcat(buf,tmp);
 	sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
 	strcat(buf,tmp);
-	sprintf(buft,"%s", buf);
-	if (strcmp(parameter,"crc") != 0) {
-		filter_crc_string(buft, FILE_INI, strlen(buft));
-		sprintf(nonvolotile_config.crc,"%hu\n", calc_crc(buft, strlen(buft)));
-	}
+	filter_crc_string(buf, FILE_INI, strlen(buf));
+	sprintf(nonvolotile_config.crc,"%hu\n", calc_crc(buf, strlen(buf)));
+}
+
+void nonvolotile_update(const char* parameter, const char* value)
+{
+	char reply[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char tmp[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char command[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	read_current_nonvolotile_data();
+	update_relevant_nonvolotile_data_field(parameter, value);
+	if (strcmp(parameter,"crc") != 0) 
+		nonvolotile_update_crc();
+	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
+	strcat(reply,tmp);
+	sprintf(tmp, "main_pn=%s", nonvolotile_config.main_pn);
+	strcat(reply,tmp);
+	sprintf(tmp, "som_sn=%s", nonvolotile_config.som_sn);
+	strcat(reply,tmp);
+	sprintf(tmp, "cradle_sn=%s", nonvolotile_config.cradle_sn);
+	strcat(reply,tmp);
+	sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+	strcat(reply,tmp);
 	sprintf(tmp, "crc=%s", nonvolotile_config.crc);
-	strcat(buf,tmp);
-	strcat(buf,"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
-	safe_write_file_stream(NONVOLOTILE_USERDATA_FILE, buf);
-	usleep(USEC_NONVOLOTILE_ACTION);
-	exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
-	usleep(USEC_NONVOLOTILE_ACTION);
-	printf("saved data is:\n %s\r\n", buf);
+	strcat(reply,tmp);
+	strcat(reply,"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+	sprintf(command,"%s%s%s","echo \"",reply ,"\" > /data/boot_args && dd if=/data/boot_args of=/dev/block/mmcblk0 bs=512 seek=1536 count=1");
+	m_exec_system_command2(command,reply);
 }
 
 
 int m_exec_system_command2(const char * command, char* reply)
 {
-   char buffer[REPLY_STRING_LENGTH];
+   char buffer[MAX_CONF_SIZE];
 
    // Open pipe to file
    FILE* pipe = popen(command, "r");
