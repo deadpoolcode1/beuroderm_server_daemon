@@ -648,11 +648,67 @@ void nonvolotile_update_crc()
 	sprintf(nonvolotile_config.crc,"%hu\n", calc_crc(buf, strlen(buf)));
 }
 
+
+bool nonvolotile_varify_parameter(const char* parameter, const char* expected)
+{	
+	int i = 0;
+    const char* supported_params[] = {"main_sn", "main_pn", "som_sn", "cradle_sn", "ftu_date", "crc"};
+    const int num_params = sizeof(supported_params) / sizeof(supported_params[0]);
+	char buf[MAX_CONF_SIZE] = {0};
+    for (i = 0; i < num_params; i++) {
+        if (strcmp(parameter, supported_params[i]) == 0) {
+            // Update the corresponding parameter
+			nonvolotile_parse_parameter(parameter, buf, MAX_CONF_SIZE );
+			if (strcmp (expected, buf) == 0)
+            	return true;
+			else
+				return false;
+        }
+        if (i == num_params - 1) {
+            // Parameter not found, handle error
+			return false;
+        }
+    }	
+
+	return false;
+}
+
+
+/** @brief general function used for executing shell commands from ate_daemon
+ */
+int exec_system_command3(const char * command, char* reply, bool wait_reply)
+{
+   char buffer[REPLY_STRING_LENGTH];
+
+   // Open pipe to file
+   FILE* pipe = popen(command, "r");
+   if (!pipe) {
+      return 1;
+   }
+
+   if (!wait_reply)
+	return 0;
+
+   // read till end of process:
+   while (!feof(pipe)) {
+
+      // use buffer to read and add to result
+      if (fgets(buffer, 128, pipe) != NULL)
+         strcat(reply, buffer);
+      ND_printlog(ND_LOG_INFO, "buf:%s\n", buffer);
+   }
+
+   pclose(pipe);
+   return 0;
+}
+#define NVM_WRITE_RETRY_MAX 3
 void nonvolotile_update(const char* parameter, const char* value)
 {
+	char buf[MAX_CONF_SIZE] = {0};
 	char reply[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char tmp[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char command[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	int i = 0;
 	read_current_nonvolotile_data();
 	update_relevant_nonvolotile_data_field(parameter, value);
 	if (strcmp(parameter,"crc") != 0) 
@@ -672,6 +728,28 @@ void nonvolotile_update(const char* parameter, const char* value)
 	strcat(reply,"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
 	sprintf(command,"%s%s%s","echo \"",reply ,"\" > /data/boot_args && dd if=/data/boot_args of=/dev/block/mmcblk0 bs=512 seek=1536 count=1");
 	m_exec_system_command2(command,reply);
+	for (i = 0; i < NVM_WRITE_RETRY_MAX; i++)
+	{
+		if (nonvolotile_varify_parameter(parameter, value )) {
+			ND_printlog(ND_LOG_INFO, "NVM write OK\n");
+			break;
+		}
+		else {
+			m_exec_system_command2(command,reply);
+			if (i < (NVM_WRITE_RETRY_MAX -1) )
+				ND_printlog(ND_LOG_INFO, "NVM write fail, retry\n");
+			else
+				{
+					ND_printlog(ND_LOG_INFO, "NVM write failed\n");
+					sprintf(command,"eval \"/system/bin/server_daemon_send 127.0.0.1 nvm_write_status\"");
+					exec_system_command3(command, NULL, false);
+					sprintf(command,"/system/bin/log -p v -t \"server_daemon\" \"keycode \"%d",600);
+					exec_system_command3(command, NULL, false);
+					sprintf(command,"eval \"input keyevent %d\"",600);
+					exec_system_command3(command, NULL, false);
+				}
+		}
+	}
 }
 
 

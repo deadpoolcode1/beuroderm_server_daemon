@@ -33,7 +33,7 @@
 #include "server_log.h"
 #include "common.h"
 
-
+bool nvm_write_status = true;
 timer_t timer_id_suspend_to_ram;
 timer_t timer_id_update_time;
 
@@ -73,7 +73,6 @@ char * return_current_bit_status(char *update_string, bool print_result);
 int exec_system_command(const char * parameter, const char* process_to_execute);
 uint8_t test_serial_number_validity();
 int exec_system_command2(const char * command, char* reply, bool wait_reply);
-
 
 static void try_write_file(char *filename, char *value)
 {
@@ -635,7 +634,7 @@ uint8_t bittest_init_full(uint8_t update_status)
 
         //nvm validity
         value_to_pass = FAILED;
-        if (test_nvm())
+        if (test_nvm() && nvm_write_status)
                 value_to_pass = PASSED;
         latest_bittest.nvm_status = value_to_pass;
 	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
@@ -1253,6 +1252,10 @@ void *connection_handler(void *socket_desc)
 			ND_printlog(ND_LOG_INFO, "sys.boot_completed:%s\n", returnMsg);
 			if (send(sock , returnMsg , 2, 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+		}  else if ((ptr = strstr(client_message, "nvm_write_status")) != NULL) {
+			nvm_write_status = false;
+			latest_bittest.nvm_status = false;
+			try_write_file(LATEST_BIT_STATUS, "0");  //this fails the BIT status
 		} else if ((ptr = strstr(client_message, "write_command:device_charger")) != NULL) {
 			//example: write_command:device_charger=1
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
