@@ -100,7 +100,8 @@ void create_md5_file(char *dir_name, char *md5_dir_name)
         {
 	    if (strlen(dir->d_name) < 3)
 		continue;
-	    sprintf(command,"%s%s%s%s","find ",dir_name,dir->d_name," -type f | xargs cksum | cksum");
+        
+	    sprintf(command,"%s%s%s%s","find ",dir_name,dir->d_name," -type f | xargs md5sum | md5sum | cut -d' ' -f1");
 	    ND_printlog(ND_LOG_INFO, "command: %s\n", command);
 	    reply[0] = '\0';
 	    exec_system_command2(command, reply);

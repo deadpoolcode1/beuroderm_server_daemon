@@ -511,7 +511,7 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 				continue;
 			if (strcmp(dir->d_name, lang_type) == 0) {
 				ND_printlog(ND_LOG_INFO, "check md5 for directory:%s\n",dir->d_name);
-	    			sprintf(command,"%s%s%s%s","find ",test_dir,dir->d_name," -type f | xargs cksum | cksum");
+	    			sprintf(command,"%s%s%s%s","find ",test_dir,dir->d_name," -type f | xargs md5sum | md5sum | cut -d' ' -f1");
 	    			md5_calculated[0] = '\0';
 	    			exec_system_command2(command, md5_calculated, true);
 				sprintf(md5_string_search,"%s=%s",dir->d_name,md5_calculated);
@@ -1177,7 +1177,7 @@ void *connection_handler(void *socket_desc)
 		} else if ((ptr = strstr(client_message, "test_exec")) != NULL) {
 			/*perform exec
 			example: test_exec:/system/bin/monkey --pct-syskeys 0 -p com.neuroderm.ndscreentest 1
-			example: server_daemon_send 127.0.0.1 "test_exec:find /data/NEURODERM/LANGUAGES/VIDEO/en_US/ -type f | xargs cksum | cksum"
+			example: server_daemon_send 127.0.0.1 "test_exec:find /data/NEURODERM/LANGUAGES/VIDEO/en_US/ -type f | xargs md5sum | md5sum | cut -d' ' -f1"
 			*/
 			if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);				
