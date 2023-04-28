@@ -59,6 +59,7 @@ struct bittest_info {
 	uint8_t serial_number_status;
 	uint8_t u14_functionality;
 	uint8_t audio_files_status;
+	uint8_t nvm_status;
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
 	uint8_t bit_status;
@@ -66,7 +67,7 @@ struct bittest_info {
 };
 
 alarms_struct alarms;
-struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED, BIT_NOT_PERFORMED};
+struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string, bool print_result);
 
 int exec_system_command(const char * parameter, const char* process_to_execute);
@@ -134,7 +135,7 @@ static void check_rtc_progress()
         retry_count++;
 		sprintf(command,"/system/bin/log -p v -t \"server_daemon\" \"keycode \"%d",RTC_FAIL_KEYCODE);
 		exec_system_command2(command, NULL, false);
-		sprintf(command,"eval \"input keyevent $1\"",RTC_FAIL_KEYCODE);
+		sprintf(command,"eval \"input keyevent %d\"",RTC_FAIL_KEYCODE);
 		exec_system_command2(command, NULL, false);
     } while (retry_count < MAX_NUMBER_RTC_RETRIES);
 
@@ -395,6 +396,8 @@ char * return_current_bit_status(char *update_string, bool print_result)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_boolean(root_object, BIT_AUDIO_FILES, latest_bittest.audio_files_status)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_NVM, latest_bittest.nvm_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((update_string = json_serialize_to_string_pretty(root_value)) == NULL)
@@ -511,7 +514,7 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 				continue;
 			if (strcmp(dir->d_name, lang_type) == 0) {
 				ND_printlog(ND_LOG_INFO, "check md5 for directory:%s\n",dir->d_name);
-	    			sprintf(command,"%s%s%s%s","find ",test_dir,dir->d_name," -type f | xargs md5sum | md5sum | cut -d' ' -f1");
+					sprintf(command, "find %s%s -type f | xargs md5sum | md5sum | cut -d' ' -f1", test_dir, dir->d_name);
 	    			md5_calculated[0] = '\0';
 	    			exec_system_command2(command, md5_calculated, true);
 				sprintf(md5_string_search,"%s=%s",dir->d_name,md5_calculated);
@@ -538,6 +541,23 @@ void varify_fs_mounted()
 			return;
 		sleep (1);
 	}	
+}
+
+bool test_nvm()
+{
+	int i = 0;
+	char reply[REPLY_STRING_LENGTH] = {0};
+	char command[REPLY_STRING_LENGTH] = {0};
+    char *substrings[] = {"main_sn=", "main_pn=", "som_sn=", "cradle_sn=", "ftu_date=", "crc="};
+    int num_substrings = sizeof(substrings) / sizeof(substrings[0]);
+	sprintf(command,"%s","server_daemon_nonvolotile print");
+	exec_system_command2(command, reply, true);
+    for (i = 0; i < num_substrings; i++) {
+        if (strstr(reply, substrings[i]) == NULL) 
+           return false;
+    }
+	
+	return true;
 }
 
 //uint8_t bittest_performed = 0;
@@ -602,7 +622,11 @@ uint8_t bittest_init_full(uint8_t update_status)
                 value_to_pass = PASSED;
         latest_bittest.audio_files_status = value_to_pass;
 
-
+        //nvm validity
+        value_to_pass = FAILED;
+        if (test_nvm())
+                value_to_pass = PASSED;
+        latest_bittest.nvm_status = value_to_pass;
 	if (strftime(latest_bittest.timestamp, STD_FILE_LENGTH, "%c" , p) == 0)
 		ND_printlog(ND_LOG_ERROR, "error, failed getting time");
 
