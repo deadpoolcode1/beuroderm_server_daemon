@@ -34,7 +34,6 @@
 #include "common.h"
 
 
-timer_t timer_id_rtc_functional;
 timer_t timer_id_suspend_to_ram;
 timer_t timer_id_update_time;
 
@@ -72,6 +71,7 @@ char * return_current_bit_status(char *update_string, bool print_result);
 
 int exec_system_command(const char * parameter, const char* process_to_execute);
 uint8_t test_serial_number_validity();
+int exec_system_command2(const char * command, char* reply, bool wait_reply);
 
 
 static void try_write_file(char *filename, char *value)
@@ -86,53 +86,76 @@ static void try_write_file(char *filename, char *value)
 	safe_close(fd);
 }
 
-static void check_rtc_progress(char *filebufferl, size_t size_filebufferl)
+#define RTC_CHECK_WAIT_TIME 2 
+#define MIN_RTC_PASS_OK 1
+#define MAX_RTC_PASS_OK 3
+#define MAX_NUMBER_RTC_RETRIES 4
+#define RTC_FAIL_KEYCODE 701
+
+static bool check_rtc_progress_res()
 {
        char rtc_raw_value[RTC_DATA_LEN] = {0};
-       int time_now = 0;
-       if (str2int(&latest_bittest.store_rtc_time_data, filebufferl, MAX_ALLOWED_TRAILING_SPACES, size_filebufferl) != STR2INT_SUCCESS)
-               return;
-       sleep(2);
+       int time_now = 0, time_diff = 0, time_start = 0;
+
+	   //read time start
+       if (read_file_data(rtc_time_path, rtc_raw_value, sizeof(rtc_raw_value) / sizeof(char)))
+			return false;
+
+       if (str2int(&time_start, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
+			return false;
+
+       sleep(RTC_CHECK_WAIT_TIME);
+	   //read time now
        ND_printlog(ND_LOG_INFO, "testing if RTC time has progressed\n");
        if (read_file_data(rtc_time_path, rtc_raw_value, sizeof(rtc_raw_value) / sizeof(char)))
-                        goto handler_timer_failedb;
-       if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
-                        goto handler_timer_failedb;
-       if (time_now  > latest_bittest.store_rtc_time_data)
-               latest_bittest.rtc_functional_status = PASSED;
-       else
-               latest_bittest.rtc_functional_status = FAILED;
+			return false;
 
-       return;
-handler_timer_failedb:
-        latest_bittest.rtc_functional_status = PASSED;
+       if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
+			return false;
+
+	   time_diff =  time_now - time_start;
+	   if (time_diff >= MIN_RTC_PASS_OK && time_diff <= MAX_RTC_PASS_OK) 
+               return true;
+       else
+               return false;
+}
+
+static void check_rtc_progress()
+{
+    int retry_count = 0, test_pass = 0;
+	char command[REPLY_STRING_LENGTH] = {0};
+
+    // retry up to MAX_NUMBER_RTC_RETRIES times if test fails
+    do {
+        if (check_rtc_progress_res()) {
+            test_pass = 1;
+            break;
+        }
+        retry_count++;
+		sprintf(command,"/system/bin/log -p v -t \"server_daemon\" \"keycode \"%d",RTC_FAIL_KEYCODE);
+		exec_system_command2(command, NULL, false);
+		sprintf(command,"eval \"input keyevent $1\"",RTC_FAIL_KEYCODE);
+		exec_system_command2(command, NULL, false);
+    } while (retry_count < MAX_NUMBER_RTC_RETRIES);
+
+    // set the test status based on whether the test passed or not
+    latest_bittest.rtc_functional_status = test_pass ? PASSED : FAILED;
 }
 
 /** @brief function called when timer expires
  */
-static void handler_timer(int sig, siginfo_t *si, void *uc)
+static void handler_timer(int sig, siginfo_t *si, void *unused)
 {
 	timer_t *tidp = NULL;
 	int time_now  = 0, fd = 0;
 	char return_reply[REPLY_STRING_LENGTH] = {0};
 	char rtc_raw_value[RTC_DATA_LEN] = {0};
+
+	(void)unused;
 	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
 	ND_printlog(ND_LOG_INFO, "Caught signal value %d\n", sig);
 	tidp = si->si_value.sival_ptr;
-	if (*tidp == timer_id_rtc_functional) {
-		ND_printlog(ND_LOG_INFO, "testing if RTC time has progressed\n");
-		if (read_file_data(rtc_time_path, rtc_raw_value, sizeof(rtc_raw_value) / sizeof(char)))
-			goto handler_timer_failed;
-		if (str2int(&time_now, rtc_raw_value, MAX_ALLOWED_TRAILING_SPACES, sizeof(rtc_raw_value) / sizeof(char)) != STR2INT_SUCCESS)
-			goto handler_timer_failed;
-		ND_printlog(ND_LOG_INFO, "time_now:%lu\n", time_now);
-		ND_printlog(ND_LOG_INFO, "latest_bittest.store_rtc_time_data:%lu\n", latest_bittest.store_rtc_time_data);
-		if (time_now  > latest_bittest.store_rtc_time_data)
-			latest_bittest.rtc_functional_status = PASSED;
-		else
-			latest_bittest.rtc_functional_status = FAILED;
-
-	} else if (*tidp == timer_id_suspend_to_ram) {
+	if (*tidp == timer_id_suspend_to_ram) {
 		ND_printlog(ND_LOG_INFO, "suspend to RAM\n");
 		try_write_file("/sys/devices/soc0/filling_station-pm/disp_pus_en/value", "0");
 		try_write_file("/sys/devices/soc0/filling_station-pm/disp_stby/value", "0");
@@ -228,7 +251,7 @@ void *watchdog_handler(void *);
 
 /** @brief read config data to buffer
  */
-int read_config_file_data(char *filename, char *buffer, size_t buffer_size)
+int read_config_file_data(const char *filename, char *buffer, size_t buffer_size)
 {
 	char *tmp_buffer = NULL;
 	char *line = NULL;
@@ -415,25 +438,6 @@ void create_date_update_timer()
 		ND_printlog(ND_LOG_ERROR, "error, failed creating timer\n");
 }
 
-
-/** @brief create timer, used for chacking RTC time is progressing
- */
-void create_rtc_functional_timer(char *filebufferl, size_t size_filebufferl)
-{
-	if (str2int(&latest_bittest.store_rtc_time_data, filebufferl, MAX_ALLOWED_TRAILING_SPACES, size_filebufferl) != STR2INT_SUCCESS)
-		return;
-	
-	if (timer_id_rtc_functional != NULL) {
-		if (timer_delete(timer_id_rtc_functional)) {
-			ND_printlog(ND_LOG_ERROR, "error, failed deleting timer\n");
-			return;
-		}
-	}
-
-	if (make_timer("RTC Functional Timer", &timer_id_rtc_functional, 2, 0))
-		ND_printlog(ND_LOG_ERROR, "error, failed creating timer\n");
-}
-
 #define STATUS_REGISTER 0x01
 uint8_t i2c_max77818charger_status_no_alarms()
 {
@@ -509,7 +513,7 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 				ND_printlog(ND_LOG_INFO, "check md5 for directory:%s\n",dir->d_name);
 	    			sprintf(command,"%s%s%s%s","find ",test_dir,dir->d_name," -type f | xargs cksum | cksum");
 	    			md5_calculated[0] = '\0';
-	    			exec_system_command2(command, md5_calculated);
+	    			exec_system_command2(command, md5_calculated, true);
 				sprintf(md5_string_search,"%s=%s",dir->d_name,md5_calculated);
 				reply = compare_md5(md5_string_search, dir_md5_file);
 	    			closedir(d);
@@ -524,7 +528,7 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 //uint8_t bittest_performed = 0;
 /** @brief perform full bittest
  */
-uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
+uint8_t bittest_init_full(uint8_t update_status)
 {
 	char return_reply[REPLY_STRING_LENGTH] = {0};
 	char *ptr;
@@ -562,15 +566,9 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	latest_bittest.u14_functionality = i2c_max77818charger_status_no_alarms();
 	if (latest_bittest.i2c_max77818charger_status == FAILED)
 		latest_bittest.u14_functionality = FAILED;
-       	if (blocking == NON_BLOCKING) {
-               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
-                       create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));
-       	} else {
-               if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
-                       check_rtc_progress(filebufferl,  sizeof(filebufferl) / sizeof(char));
-       	}
-
-        value_to_pass = FAILED;
+	check_rtc_progress(filebufferl,  sizeof(filebufferl) / sizeof(char));
+    
+	value_to_pass = FAILED;
 	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
 		value_to_pass = PASSED;
 	latest_bittest.fw_crc_status = value_to_pass;
@@ -680,7 +678,7 @@ int exec_system_command(const char * parameter, const char* process_to_execute)
 
 /** @brief general function used for executing shell commands from ate_daemon
  */
-int exec_system_command2(const char * command, char* reply)
+int exec_system_command2(const char * command, char* reply, bool wait_reply)
 {
    char buffer[REPLY_STRING_LENGTH];
 
@@ -689,6 +687,9 @@ int exec_system_command2(const char * command, char* reply)
    if (!pipe) {
       return 1;
    }
+
+   if (!wait_reply)
+	return 0;
 
    // read till end of process:
    while (!feof(pipe)) {
@@ -761,11 +762,12 @@ int main(void)
 
 /** @brief handle socket connections.
  */
-void *socket_handler(void *test)
+void *socket_handler(void *unused)
 {
 	int socket_desc = 0, new_socket = 0, c = 0 , *new_sock = NULL;
 	struct sockaddr_in server , client;
-	
+
+	(void)unused;	
 	//Create socket
 	if ((socket_desc = socket(AF_INET , SOCK_STREAM , 0)) == -1)
 		PRINTE("error, Could not create socket\n");
@@ -934,9 +936,9 @@ void *connection_handler(void *socket_desc)
 			if (check_snprintf(snprintf(type, sizeof(type) / sizeof(char), "%s", strstr(client_message, ":") + 1), sizeof(type) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "bittest init type:%s\n", type);
-			bittest_init_full(UPDATE_STATUS, NON_BLOCKING);
 			if (write(sock , REPLY_ACK , strlen(REPLY_ACK)) == -1)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			bittest_init_full(UPDATE_STATUS);
 		} else if ((ptr = strstr(client_message, "read_nonvolotile")) != NULL) {
 			/*action is reading nonvolotile value
 			example: read_nonvolotile:main_sn
@@ -1183,7 +1185,7 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			ND_printlog(ND_LOG_INFO, "command is:%s\n", commandFile.name);
 			returnMsg[0] = '\0';
-			exec_system_command2(commandFile.name, returnMsg);
+			exec_system_command2(commandFile.name, returnMsg, true);
 			ND_printlog(ND_LOG_INFO, "reply:%s\n", returnMsg);
 		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
@@ -1311,14 +1313,15 @@ long long current_timestamp() {
 #define MIN_TIME_BETWEEN_NOTIFICATIONS 3000
 #define MIN_TIME_BETWEEN_NOTIFICATIONS_SEC 3
 
-void *wakeup_handler(void *socket_desc)
+void *wakeup_handler(void *unused)
 {
 	int wd, fd, length, i=0, bit_result;
 	long long bit_time = 0;
 	char buffer[BUF_LEN];
 
+	(void)unused;
 	ND_printlog(ND_LOG_INFO, "wakeup handler called OK");
-	bittest_init_full(UPDATE_STATUS, BLOCKING);
+	bittest_init_full(UPDATE_STATUS);
 	fd = inotify_init();
 	wd = inotify_add_watch(fd, "/data/sleep_track", IN_MODIFY | IN_CREATE | IN_DELETE);
 	while (1) {
@@ -1334,7 +1337,7 @@ void *wakeup_handler(void *socket_desc)
 				ND_printlog(ND_LOG_INFO, "latest bit result failed, do not perform another test\n");
 				continue;
 			}
-			bit_result =  bittest_init_full(UPDATE_STATUS, BLOCKING);
+			bit_result =  bittest_init_full(UPDATE_STATUS);
 			length = 0;
 			ND_printlog(ND_LOG_INFO, "bit result after wakeup:%d\n", bit_result);
 			if (bit_result == FAILED)
@@ -1348,7 +1351,7 @@ void *wakeup_handler(void *socket_desc)
 	return 0;
 }
 
-void *language_handler(void *socket_desc)
+void *language_handler(void *unused)
 {
 	int wd, fd, length, i=0, bit_result;
 	long long  bit_time = 0;
@@ -1356,6 +1359,7 @@ void *language_handler(void *socket_desc)
 	uint8_t test_langugetxt_res = 0;
 	uint8_t test_langugevid_res = 0;
 	
+	(void)unused;
 	ND_printlog(ND_LOG_INFO, "language handler called OK");
 	fd = inotify_init();
 	wd = inotify_add_watch(fd, LANGUGE_FILE, IN_MODIFY | IN_CREATE | IN_DELETE);
@@ -1391,12 +1395,13 @@ void *language_handler(void *socket_desc)
 }
 
 
-void *pincode_handler(void *socket_desc)
+void *pincode_handler(void *unused)
 {
 	int wd, fd, length, i=0, bit_result;
 	long long  bit_time = 0;
 	char buffer[BUF_LEN];
 
+	(void)unused;
 	ND_printlog(ND_LOG_INFO, "pincode handler called OK");
 	while (1) {
 	fd = inotify_init();
@@ -1417,13 +1422,14 @@ void *pincode_handler(void *socket_desc)
 
 
 #define MIN_TIME_BETWEEN_WD 500
-void *greenled_handler(void *socket_desc)
+void *greenled_handler(void *unused)
 {
 	char read1[SHORT_FILE_LEN] = {0};
 	char read2[SHORT_FILE_LEN] = {0};
 	char read3[SHORT_FILE_LEN] = {0};
 	FILE *fptr;
 
+		(void)unused;
     	//create result file if does not exists
     	if ((fptr = fopen(WATCHDOGTEST_FILE, "rb+")) == NULL) {
 		ND_printlog(ND_LOG_INFO, "file %s not exist\n", WATCHDOGTEST_FILE);
@@ -1459,8 +1465,9 @@ void *greenled_handler(void *socket_desc)
 	return 0;
 }
 
-void *watchdog_handler(void *socket_desc)
+void *watchdog_handler(void *unused)
 {
+	(void)unused;
 	ND_printlog(ND_LOG_INFO, "greenled handler called OK");
 	while (1) {
 			exec_system_command(VAR_COMMAND_wd_keepalive, "/system/bin/ate_commands.sh");
