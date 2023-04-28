@@ -525,6 +525,11 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 	return reply;
 }
 
+varify_fs_mounted()
+{
+	
+}
+
 //uint8_t bittest_performed = 0;
 /** @brief perform full bittest
  */
@@ -545,6 +550,9 @@ uint8_t bittest_init_full(uint8_t update_status)
 	char tmp1[2] = {0};
 	
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
+	ND_printlog(ND_LOG_INFO, "\n*** varify file system is mounted, do not perform BIT until it's mounted\n");
+	varify_fs_mounted():
+	ND_printlog(ND_LOG_INFO, "\n*** FS mounted\n");
 	i2c_communications_tests();
 	value_to_pass = FAILED;
 	if (!(read_file_data(ble_result_path, filebuffer, SHORT_BUFFER_LEN))) {
