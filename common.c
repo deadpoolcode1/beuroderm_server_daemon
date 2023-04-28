@@ -649,6 +649,7 @@ void nonvolotile_update_crc()
 }
 
 
+
 bool nonvolotile_varify_parameter(const char* parameter, const char* expected)
 {	
 	int i = 0;
@@ -659,7 +660,7 @@ bool nonvolotile_varify_parameter(const char* parameter, const char* expected)
         if (strcmp(parameter, supported_params[i]) == 0) {
             // Update the corresponding parameter
 			nonvolotile_parse_parameter(parameter, buf, MAX_CONF_SIZE );
-			if (strcmp (expected, buf) == 0)
+			if (strncmp (expected, buf, strlen(expected)) == 0)
             	return true;
 			else
 				return false;
