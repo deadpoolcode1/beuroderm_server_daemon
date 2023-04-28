@@ -525,9 +525,19 @@ uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_tes
 	return reply;
 }
 
-varify_fs_mounted()
+void varify_fs_mounted()
 {
-	
+	char command[REPLY_STRING_LENGTH] = {0};
+	char reply[REPLY_STRING_LENGTH] = {0};
+	while (true)
+	{
+		sprintf(command,"%s","mount | grep \"/data\"");
+		exec_system_command2(command, reply, true);
+		char *result = strstr(reply, "block");
+		if (result != NULL) 
+			return;
+		sleep (1);
+	}	
 }
 
 //uint8_t bittest_performed = 0;
@@ -551,7 +561,7 @@ uint8_t bittest_init_full(uint8_t update_status)
 	
 	ND_printlog(ND_LOG_INFO, "\n*** Bit testing procedure started! ***\n");
 	ND_printlog(ND_LOG_INFO, "\n*** varify file system is mounted, do not perform BIT until it's mounted\n");
-	varify_fs_mounted():
+	varify_fs_mounted();
 	ND_printlog(ND_LOG_INFO, "\n*** FS mounted\n");
 	i2c_communications_tests();
 	value_to_pass = FAILED;
