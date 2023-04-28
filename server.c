@@ -545,19 +545,30 @@ void varify_fs_mounted()
 
 bool test_nvm()
 {
-	int i = 0;
-	char reply[REPLY_STRING_LENGTH] = {0};
-	char command[REPLY_STRING_LENGTH] = {0};
+    int i = 0, j = 0;
+    char reply[REPLY_STRING_LENGTH] = {0};
+    char command[REPLY_STRING_LENGTH] = {0};
     char *substrings[] = {"main_sn=", "main_pn=", "som_sn=", "cradle_sn=", "ftu_date=", "crc="};
     int num_substrings = sizeof(substrings) / sizeof(substrings[0]);
-	sprintf(command,"%s","server_daemon_nonvolotile print");
-	exec_system_command2(command, reply, true);
+    sprintf(command,"%s","server_daemon_nonvolotile print");
+    exec_system_command2(command, reply, true);
+    char* substr_ptr[num_substrings];
     for (i = 0; i < num_substrings; i++) {
-        if (strstr(reply, substrings[i]) == NULL) 
+        substr_ptr[i] = strstr(reply, substrings[i]);
+        if (substr_ptr[i] == NULL) 
            return false;
     }
-	
-	return true;
+    for (i = 0; i < num_substrings; i++) {
+        char* newline_ptr = strchr(substr_ptr[i], '\n');
+        if (newline_ptr == NULL) 
+           return false;
+        for (j = i + 1; j < num_substrings; j++) {
+            if (strchr(substr_ptr[j], '\n') == newline_ptr) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 //uint8_t bittest_performed = 0;
