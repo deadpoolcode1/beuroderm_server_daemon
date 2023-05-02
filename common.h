@@ -106,7 +106,7 @@ char * trim(char * s);
 void calculate_pincode(char* buffer_calculated_valid_pincode_result, int length);
 void nonvolotile_readall(char *reply, size_t buffer_size);
 void nonvolotile_delete();
-void nonvolotile_update(const char* parameter, const char* value);
+void nonvolotile_update(const char* parameter, const char* value, int force_fail);
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
 unsigned short nonvolotile_calculate_crc();
 unsigned short nonvolotile_extract_crc();

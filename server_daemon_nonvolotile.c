@@ -38,7 +38,7 @@ int main( int argc, char *argv[] )
 {
 	char buf[MAX_CONF_SIZE] = {0};
 	if( argc < 2 ) {
-		printf("Error, please provide an argument, <print> [parameter]/ <delete> / <update> <parameter> <value>\r\n");
+		printf("Error, please provide an argument, <print> [parameter]/ <delete> / <update> <parameter> <value> [force fail]\r\n");
 		return 0;
 	}
 	if (strcmp(argv[1],"print") == 0) {
@@ -54,11 +54,14 @@ int main( int argc, char *argv[] )
 		nonvolotile_delete();	
 	}
 	else if (strcmp(argv[1],"update") == 0) {
-		if( argc != 4 ) {
+		if( argc != 4 && argc != 5 ) {
 			printf("Error, please use as following: <update> <parameter> <value>\r\n");
 			return 0;
 		}
-		nonvolotile_update(argv[2],argv[3]);	
+		if (argc == 5)	
+			nonvolotile_update(argv[2],argv[3],atoi(argv[4]));
+		else
+			nonvolotile_update(argv[2],argv[3],0);	
 	}
 	else 
 		printf("Error, please provide a valid argument, <print> / <delete> / <update> <parameter> <value>\r\n");

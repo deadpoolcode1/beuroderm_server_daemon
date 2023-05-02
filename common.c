@@ -703,7 +703,7 @@ int exec_system_command3(const char * command, char* reply, bool wait_reply)
    return 0;
 }
 #define NVM_WRITE_RETRY_MAX 3
-void nonvolotile_update(const char* parameter, const char* value)
+void nonvolotile_update(const char* parameter, const char* value, int force_fail)
 {
 	char buf[MAX_CONF_SIZE] = {0};
 	char reply[EMPTY_NONVOLOTILE_MAXLEN] = {0};
@@ -731,16 +731,18 @@ void nonvolotile_update(const char* parameter, const char* value)
 	m_exec_system_command2(command,reply);
 	for (i = 0; i < NVM_WRITE_RETRY_MAX; i++)
 	{
-		if (nonvolotile_varify_parameter(parameter, value )) {
+		if (nonvolotile_varify_parameter(parameter, value ) && !force_fail) {
 			ND_printlog(ND_LOG_INFO, "NVM write OK\n");
 			break;
 		}
 		else {
+			force_fail--;
 			m_exec_system_command2(command,reply);
 			if (i < (NVM_WRITE_RETRY_MAX -1) )
-				ND_printlog(ND_LOG_INFO, "NVM write fail, retry\n");
+				ND_printlog(ND_LOG_INFO, "NVM write attempt %i failed\n", i+1);
 			else
 				{
+					ND_printlog(ND_LOG_INFO, "NVM write attempt %d failed\n", i+1);
 					ND_printlog(ND_LOG_INFO, "NVM write failed\n");
 					sprintf(command,"eval \"/system/bin/server_daemon_send 127.0.0.1 nvm_write_status\"");
 					exec_system_command3(command, NULL, false);
