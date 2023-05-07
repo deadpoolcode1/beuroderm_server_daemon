@@ -610,7 +610,7 @@ unsigned short nonvolotile_calculate_crc()
 	char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char tmp[VAR_MAXLEN] = {0};
-
+	read_current_nonvolotile_data();
 	buf[0] = '\0';
 	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
 	strcat(buf,tmp);
@@ -728,7 +728,8 @@ void nonvolotile_update(const char* parameter, const char* value, int force_fail
 	strcat(reply,tmp);
 	strcat(reply,"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
 	sprintf(command,"%s%s%s","echo \"",reply ,"\" > /data/boot_args && dd if=/data/boot_args of=/dev/block/mmcblk0 bs=512 seek=1536 count=1");
-	m_exec_system_command2(command,reply);
+	if (!force_fail)
+		m_exec_system_command2(command,reply);
 	for (i = 0; i < NVM_WRITE_RETRY_MAX; i++)
 	{
 		if (nonvolotile_varify_parameter(parameter, value ) && !force_fail) {
