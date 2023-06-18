@@ -476,55 +476,82 @@ uint8_t compare_md5(const char* md5_string_search, const char* saved_file)
 	return (ptr!= NULL)? PASSED : FAILED; 	
 }
 
+
+#define REPEAT_TEST 3
 /** @brief perform languge test
  */
-uint8_t test_languge(char *test_dir, char *dir_md5_file, const char* lang_to_test)
-{
-	DIR *d;
-	struct dirent *dir;
-	char lang_type[MAX_MD5_DATA_LEN] = {0};
-	char md5_calculated[MAX_MD5_DATA_LEN] = {0};
-	char command[MAX_SYSTEM_COMMAND_LEN] = {0};
-	char md5_string_search[MAX_SYSTEM_COMMAND_LEN] = {0};
-	uint8_t reply = FAILED;
+uint8_t test_languge(const char *test_dir, const char *dir_md5_file, const char *lang_to_test) {
+    DIR *d = NULL;
+    struct dirent *dir;
+    char lang_type[MAX_MD5_DATA_LEN] = {0};
+    char md5_calculated[MAX_MD5_DATA_LEN] = {0};
+    char command[MAX_SYSTEM_COMMAND_LEN] = {0};
+    char md5_string_search[MAX_SYSTEM_COMMAND_LEN] = {0};
+    uint8_t reply = FAILED;
+    int retry_count = 0;
 
-	ND_printlog(ND_LOG_INFO, "test_dir: %s dir_md5_file:%s\n", test_dir, dir_md5_file, lang_to_test);
-	if (strcmp(lang_to_test, NO_LANG) == 0) {
-		read_file_data_no_space(LANGUGE_FILE, lang_type, MAX_SYSTEM_COMMAND_LEN);
-		if (strlen (lang_type) < 2) {
-			ND_printlog(ND_LOG_INFO, "languge not selected yet, pass test");
-			return PASSED;
-		}
-	} else {
-		sprintf(lang_type,"%s", lang_to_test);
-	}
-	d = opendir(SDCARD_DIR);
-	while (!d)
-	{
-		d = opendir(SDCARD_DIR);
-	}
+    if (strcmp(lang_to_test, NO_LANG) == 0) {
+        while (retry_count < REPEAT_TEST) {
+            if (read_file_data_no_space(LANGUGE_FILE, lang_type, MAX_SYSTEM_COMMAND_LEN) == 0)
+                break;
+            retry_count++;
+        }
 
-	d = opendir(test_dir);
-	if (d)
-	{
-		while ((dir = readdir(d)) != NULL)
-        	{
-	    		if (strlen(dir->d_name) < 3)
-				continue;
-			if (strcmp(dir->d_name, lang_type) == 0) {
-				ND_printlog(ND_LOG_INFO, "check md5 for directory:%s\n",dir->d_name);
-					sprintf(command, "find %s%s -type f | xargs md5sum | md5sum | cut -d' ' -f1", test_dir, dir->d_name);
-	    			md5_calculated[0] = '\0';
-	    			exec_system_command2(command, md5_calculated, true);
-				sprintf(md5_string_search,"%s=%s",dir->d_name,md5_calculated);
-				reply = compare_md5(md5_string_search, dir_md5_file);
-	    			closedir(d);
-				return reply;
-			}
-        	}
-        	closedir(d);
-    	}
-	return reply;
+        if (strlen(lang_type) < 2) {
+            ND_printlog(ND_LOG_INFO, "language not selected yet, passing test");
+            return PASSED;
+        }
+    } else {
+        snprintf(lang_type, MAX_MD5_DATA_LEN, "%s", lang_to_test);
+    }
+
+    retry_count = 0;
+    while (retry_count < REPEAT_TEST) {
+        d = opendir(SDCARD_DIR);
+        if (d) {
+            break;
+        }
+        retry_count++;
+        sleep(1);  // Sleep for 1 second after a failed opendir attempt
+    }
+
+    if (!d) {
+        return reply;
+    }
+
+    retry_count = 0;
+    while (retry_count < REPEAT_TEST) {
+        d = opendir(test_dir);
+        if (d) {
+            break;
+        }
+        retry_count++;
+        sleep(1);  // Sleep for 1 second after a failed opendir attempt
+    }
+
+    if (!d) {
+        closedir(d);
+        return reply;
+    }
+
+    while ((dir = readdir(d)) != NULL) {
+        if (strlen(dir->d_name) < 3)
+            continue;
+        if (strcmp(dir->d_name, lang_type) == 0) {
+            ND_printlog(ND_LOG_INFO, "check md5 for directory:%s\n", dir->d_name);
+            snprintf(command, MAX_SYSTEM_COMMAND_LEN, "find %s%s -type f | xargs md5sum | md5sum | cut -d' ' -f1", test_dir, dir->d_name);
+            md5_calculated[0] = '\0';
+            exec_system_command2(command, md5_calculated, true);
+            snprintf(md5_string_search, MAX_SYSTEM_COMMAND_LEN, "%s=%s", dir->d_name, md5_calculated);
+            reply = compare_md5(md5_string_search, dir_md5_file);
+            closedir(d);
+            return reply;
+        }
+    }
+
+    closedir(d);
+
+    return reply;
 }
 
 void varify_fs_mounted()

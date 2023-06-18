@@ -94,31 +94,45 @@ exit_str2int:
 
 /** @brief read file line by line, return only last line
  */
-int read_file_data(char *filename, char *buffer, size_t buffer_size)
-{
-	FILE *fptr = NULL;
-	char *tmp_buffer = NULL;
-	if ((fptr = fopen(filename, "r")) == NULL)
-		goto read_file_data_error;
-	while (-1 != getline(&tmp_buffer, &buffer_size, fptr)) {
-	}
-	if (fflush(stdout) == EOF)
-		goto read_file_data_error;
-	// make sure we close the filewhen we're
-	// finished
-	if (fclose(fptr) == EOF)
-		goto read_file_data_error;
-	if (check_snprintf(snprintf(buffer, buffer_size, "%s", tmp_buffer), buffer_size))
-		goto read_file_data_error;
-	FREE (tmp_buffer);
-	return 0;
+int read_file_data(const char *filename, char *buffer, size_t buffer_size) {
+    FILE *fptr = fopen(filename, "r");
+    char *tmp_buffer = NULL;
 
-read_file_data_error:
-	ND_printlog(ND_LOG_ERROR, "Error, failed reading file %s, %s", filename, strerror(errno));
-	if (fptr != NULL)
-		safe_close_stream(fptr);
-	FREE (tmp_buffer);
-	return -1;
+    if (fptr == NULL) {
+        ND_printlog(ND_LOG_ERROR, "Failed to open file %s - %s", filename, strerror(errno));
+        return -1;
+    }
+
+    size_t line_size = 0;
+    ssize_t read;
+    while ((read = getline(&tmp_buffer, &line_size, fptr)) != -1) {
+        // Do nothing, just read the file line by line
+    }
+
+    if (fflush(stdout) == EOF) {
+        ND_printlog(ND_LOG_ERROR, "Failed to flush stdout");
+        fclose(fptr);
+        free(tmp_buffer);
+        return -1;
+    }
+
+    if (fclose(fptr) == EOF) {
+        ND_printlog(ND_LOG_ERROR, "Failed to close file %s - %s", filename, strerror(errno));
+        free(tmp_buffer);
+        return -1;
+    }
+
+    size_t tmp_buffer_len = strlen(tmp_buffer);
+    if (tmp_buffer_len >= buffer_size) {
+        ND_printlog(ND_LOG_ERROR, "Insufficient buffer size");
+        free(tmp_buffer);
+        return -1;
+    }
+    strncpy(buffer, tmp_buffer, buffer_size - 1);
+    buffer[buffer_size - 1] = '\0';  // Ensure null-termination
+
+    free(tmp_buffer);
+    return 0;
 }
 
 bool parse_long(const char *str, long *val)
@@ -370,20 +384,20 @@ void create_file_if_needed(const char* filename)
 
 /** @brief read file data, remove spaces
  */
-void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size)
+int read_file_data_no_space(const char *filename, char *buffer, size_t buffer_size) 
 {
-	char *pos = NULL;
+    if (read_file_data(filename, buffer, buffer_size) != 0) {
+        ND_printlog(ND_LOG_ERROR, "Failed to read file %s", filename);
+        return -1;
+    }
 
-	if (read_file_data(filename, buffer, buffer_size)) {
-		if (check_snprintf(snprintf(buffer, buffer_size, "%s", error_message_read_file), buffer_size))
-			ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-		return;
-	}
-	trim(buffer);
-	if ((pos = strchr(buffer, '\n')) != NULL)
-		* pos = '\0';
+    trim(buffer);
+    char *pos = strchr(buffer, '\n');
+    if (pos != NULL)
+        *pos = '\0';
+
+    return 0;
 }
-
 
 /** @brief calculate pincode
  */
