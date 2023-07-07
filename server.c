@@ -641,7 +641,10 @@ uint8_t bittest_init_full(uint8_t update_status)
 	latest_bittest.u14_functionality = i2c_max77818charger_status_no_alarms();
 	if (latest_bittest.i2c_max77818charger_status == FAILED)
 		latest_bittest.u14_functionality = FAILED;
-	check_rtc_progress(filebufferl,  sizeof(filebufferl) / sizeof(char));
+	if (latest_bittest.i2c_rtc_status == FAILED)
+		latest_bittest.rtc_functional_status = FAILED;
+	else
+		check_rtc_progress(filebufferl,  sizeof(filebufferl) / sizeof(char));
     
 	value_to_pass = FAILED;
 	if (crc_passed(FW_CONFIG_FILE_PATH, FILE_INI) == 0)
@@ -965,7 +968,7 @@ void *connection_handler(void *socket_desc)
 			//is case ftu is done, APK sends command /data/IsFTU=0. and previuse value must be /data/IsFTU=2, in this case we just completed FTU and save FTU date
 			if (strcmp(commandFile.name, "/data/IsFTU") == 0 && strncmp(commandFile.value, "0",1) == 0) {
 				//check if prev FTU value is 2
-				read_file_data_no_space("/data/IsFTU", read1, 1);
+				read_file_data_no_space("/data/IsFTU", read1, size_of_array_read_file);
 				if (strncmp(read1,"2", 1) == 0)
 					exec_system_command("", "/system/bin/saveftudate_script.sh");
 			}
