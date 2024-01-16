@@ -52,13 +52,14 @@
 #define MIN_VALID_FACTORY_SN_LEN 6
 #define NONVOLOTILE_USERDATA_FILE "/data/boot_args"
 #define USEC_NONVOLOTILE_ACTION 100000
+#define NONVOLOTILE_READ_SCRIPT "/system/bin/read_nonvolotile.sh"
+#define NONVOLOTILE_WRITE_SCRIPT "/system/bin/write_nonvolotile.sh"
 #define END_STRING "zzz"
 #define MAX_CONF_SIZE 8192
 #define EMPTY_NONVOLOTILE "main_sn=zzz\nmain_pn=zzz\nsom_sn=zzz\ncradle_sn=zzz\nftu_date=1970-01-01:00:00:00\ncrc=zzz\n000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 #define EMPTY_NONVOLOTILE_MAXLEN 500
 #define VAR_MAXLEN 40
 #define DEFAULT_PINCODE "06120000"
-#define REPLY_STRING_LENGTH 1000
 
 enum {
 	STR2INT_SUCCESS,
@@ -96,21 +97,20 @@ void safe_close_stream(FILE *fd);
 int safe_write_file_stream(char *filename, char *data);
 int crc_passed(char *filename, uint8_t type);
 bool parse_long(const char *str, long *val);
-int read_file_data(const char *filename, char *buffer, size_t buffer_size);
+int read_file_data(char *filename, char *buffer, size_t buffer_size);
 unsigned short calc_crc(char *buffer, unsigned short length);
 bool check_if_file_exists(const char* filename);
 void create_file_if_needed(const char* filename);
-int read_file_data_no_space(const char *filename, char *buffer, size_t buffer_size);
+int read_file_data(char *filename, char *buffer, size_t buffer_size);
+void read_file_data_no_space(char *filename, char *buffer, size_t buffer_size);
 char * trim(char * s);
 void calculate_pincode(char* buffer_calculated_valid_pincode_result, int length);
 void nonvolotile_readall(char *reply, size_t buffer_size);
 void nonvolotile_delete();
-void nonvolotile_update(const char* parameter, const char* value, int force_fail);
+void nonvolotile_update(const char* parameter, const char* value);
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
 unsigned short nonvolotile_calculate_crc();
 unsigned short nonvolotile_extract_crc();
-int m_exec_system_command2(const char * command, char* reply);
-void nonvolotile_parse_parameter_string(const char* full_String, const char* parameter, char* reply);
 
 #define FREE(p) \
 do \
