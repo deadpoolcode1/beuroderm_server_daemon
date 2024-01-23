@@ -12,24 +12,39 @@
 
 /** @brief general function used for executing shell commands from ate_daemon
  */
-int exec_system_command(const char * parameter, const char* process_to_execute)
-{
-	ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
-	if (strlen(parameter) > MAX_SYSTEM_COMMAND_LEN)
-		return -1;
-        if (strncmp (parameter,"sudo",strlen("sudo") == 0))
-		return -1;
-	pid_t my_pid, parent_pid, child_pid;
-	if ((child_pid = fork()) < 0) {
-		ND_printlog(ND_LOG_ERROR, "fork failed");
-		return -1;
-	}
+int exec_system_command(const char* parameter, const char* process_to_execute) {
+    ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
 
-	if (child_pid == 0) {
-		execl("/system/bin/sh", "/system/bin/sh", "-C", process_to_execute, parameter, (char *)NULL);
-		return -1; //return fail if reached here
-	};
-	return 0;
+    if (strlen(parameter) > MAX_SYSTEM_COMMAND_LEN)
+        return -1;
+
+    if (strncmp(parameter, "sudo", strlen("sudo")) == 0)
+        return -1;
+
+    pid_t pid;
+    if ((pid = fork()) < 0) {
+        ND_printlog(ND_LOG_ERROR, "fork failed");
+        return -1;
+    }
+
+    if (pid == 0) { // First child
+        if ((pid = fork()) < 0) {
+            ND_printlog(ND_LOG_ERROR, "second fork failed");
+            _exit(1);  // Exit immediately if second fork fails
+        }
+
+        if (pid > 0)
+            _exit(0); // Exit first child
+
+        // Grandchild process
+        execl("/system/bin/sh", "/system/bin/sh", "-c", process_to_execute, parameter, (char *)NULL);
+        _exit(1);  // Exit immediately if execl fails
+    }
+
+    // Parent process waits for the first child to exit
+    waitpid(pid, NULL, 0);
+
+    return 0;
 }
 
 
