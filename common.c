@@ -412,7 +412,7 @@ char * trim(char * s)
 	return strndup(s, l);
 }
 
-int exec_system_command(const char* parameter, const char* process_to_execute) {
+int m_exec_system_command(const char* parameter, const char* process_to_execute) {
     ND_printlog(ND_LOG_DEBUG, "-- %s:%d -- \n", __func__, __LINE__);
 
     if (strlen(parameter) > MAX_SYSTEM_COMMAND_LEN)
@@ -437,7 +437,7 @@ int exec_system_command(const char* parameter, const char* process_to_execute) {
             _exit(0); // Exit first child
 
         // Grandchild process
-        execl("/system/bin/sh", "/system/bin/sh", "-c", process_to_execute, parameter, (char *)NULL);
+        execl("/system/bin/sh", "/system/bin/sh", "-C", process_to_execute, parameter, (char *)NULL);
         _exit(1);  // Exit immediately if execl fails
     }
 

@@ -145,7 +145,7 @@ int exec_system_command(const char* parameter, const char* process_to_execute) {
             _exit(0); // Exit first child
 
         // Grandchild process
-        execl("/system/bin/sh", "/system/bin/sh", "-c", process_to_execute, parameter, (char *)NULL);
+        execl("/system/bin/sh", "/system/bin/sh", "-C", process_to_execute, parameter, (char *)NULL);
         _exit(1);  // Exit immediately if execl fails
     }
 
