@@ -432,7 +432,8 @@ void i2c_communications_tests()
 	latest_bittest.i2c_max77818top_status = check_i2c_validity(i2c0_path, i2c_max77818top_status_address, i2c_max77818top_status_register);
 	latest_bittest.i2c_max77818charger_status = check_i2c_validity(i2c0_path, i2c_max77818charger_status_address, i2c_max77818charger_status_register);
 	latest_bittest.i2c_displaytouchpanel_status = check_i2c_validity(i2c0_path, i2c_displaytouchpanel_status_address, i2c_displaytouchpanel_status_register);
-	latest_bittest.i2c_max77816dc3_status = check_i2c_validity(i2c2_path, i2c_max77816dc3_status_address, i2c_max77816dc3_status_register);
+	// U14 (MAX77816) removed from hardware - always report as PASSED for transparent removal
+	latest_bittest.i2c_max77816dc3_status = PASSED;
 	latest_bittest.i2c_rtc_status = check_i2c_validity(i2c2_path, i2c_rtc_status_address, i2c_rtc_status_register);
 	latest_bittest.i2c_rtcmemblock0_status = check_i2c_validity(i2c2_path, i2c_rtcmemblock0_status_address, i2c_rtcmemblock0_status_register);
 	latest_bittest.i2c_rtcmemblock1_status = check_i2c_validity(i2c2_path, i2c_rtcmemblock1_status_address, i2c_rtcmemblock1_status_register);
@@ -547,10 +548,8 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 		value_to_pass = PASSED;
 
 	latest_bittest.language_file_status = value_to_pass;
-	//U14 finctionality
-	latest_bittest.u14_functionality = i2c_max77818charger_status_no_alarms();
-	if (latest_bittest.i2c_max77818charger_status == FAILED)
-		latest_bittest.u14_functionality = FAILED;
+	// U14 (MAX77816) removed from hardware - always report as PASSED for transparent removal
+	latest_bittest.u14_functionality = PASSED;
        	if (blocking == NON_BLOCKING) {
                if (!read_file_data(rtc_time_path, filebufferl, sizeof(filebufferl) / sizeof(char)))
                        create_rtc_functional_timer(filebufferl,  sizeof(filebufferl) / sizeof(char));

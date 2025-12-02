@@ -198,18 +198,18 @@ void read_5v_status()
 void *wakeup_handler(void *socket_desc)
 {
 	
-	while (1) {		
+	while (1) {
 		sleep(SLEEP_TIME);
 		if (counter_flag == 1) {
-			ND_printlog(ND_LOG_INFO, "read u14 value\n");
+			ND_printlog(ND_LOG_INFO, "read 5V charger status\n");
 			read_5v_status();
 		}
 		if (counter_flag == COUNTER_TIMES) {
-			ND_printlog(ND_LOG_INFO, "use result from u14 read value as valid reading\n");	
+			ND_printlog(ND_LOG_INFO, "use result from 5V charger read as valid reading\n");
 			manage_alarms_5v(alarm_status);
 			counter_flag = 0;
 		}
-		else			
+		else
 			counter_flag++;
 	}
 }
