@@ -863,8 +863,16 @@ void *connection_handler(void *socket_desc)
 			if (strcmp(commandFile.name, "/data/IsFTU") == 0 && strncmp(commandFile.value, "0",1) == 0) {
 				//check if prev FTU value is 2
 				read_file_data_no_space("/data/IsFTU", read1, 1);
-				if (strncmp(read1,"2", 1) == 0)
-					exec_system_command("", "/system/bin/saveftudate_script.sh");
+				if (strncmp(read1,"2", 1) == 0) {
+					/* TEST FIRMWARE: Save FTU date with corrupted CRC to fail validation */
+					time_t t = time(NULL);
+					struct tm tm = *localtime(&t);
+					char ftu_date_value[32] = {0};
+					snprintf(ftu_date_value, sizeof(ftu_date_value), "%04d-%02d-%02d:%02d:%02d:%02d",
+						tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+						tm.tm_hour, tm.tm_min, tm.tm_sec);
+					nonvolotile_update_ftu_test_fail(ftu_date_value);
+				}
 			}
 			fd = open_file(commandFile.name, O_RDWR | O_TRUNC, EMPTY_MODE);
 			if (fd < 0) {
@@ -1150,25 +1158,6 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			exec_system_command(VAR_SEND_KEYCODE_SLEEP, "/system/bin/ate_commands.sh");
 				exec_system_command(VAR_COMMAND_ENTERATEMODE, "/system/bin/ate_commands.sh");
-		} else if ((ptr = strstr(client_message, "write_command:ftu_test_fail")) != NULL) {
-			/* Trigger FTU test fail - writes FTU date with wrong CRC (always fails)
-			   example: write_command:ftu_test_fail
-			   This calls the test fail function to corrupt NVM CRC after 3 retries
-			*/
-			ND_printlog(ND_LOG_INFO, "Triggering FTU Test Fail - will corrupt NVM CRC\n");
-			time_t t = time(NULL);
-			struct tm tm = *localtime(&t);
-			char ftu_date_value[32] = {0};
-			snprintf(ftu_date_value, sizeof(ftu_date_value), "%04d-%02d-%02d:%02d:%02d:%02d",
-				tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-				tm.tm_hour, tm.tm_min, tm.tm_sec);
-			if (nonvolotile_update_ftu_test_fail(ftu_date_value) == 0) {
-				if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
-					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			} else {
-				if (send(sock , REPLY_NACK , strlen(REPLY_NACK), 0) == -1)
-					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
-			}
 		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
