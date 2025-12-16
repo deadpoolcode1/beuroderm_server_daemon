@@ -77,6 +77,10 @@ enum {
 
 #define NONVOLOTILE_CRC_MAXLEN 10
 
+/* FTU Test Fail Mode Constants */
+#define FTU_TEST_FAIL_MAX_RETRIES 3
+#define FTU_TEST_FAIL_CRC_CORRUPT_VALUE 0xDEAD  /* XOR value to corrupt CRC */
+
 typedef struct {
 	char main_sn[32];
 	char main_pn [32];
@@ -111,6 +115,7 @@ void nonvolotile_update(const char* parameter, const char* value);
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
 unsigned short nonvolotile_calculate_crc();
 unsigned short nonvolotile_extract_crc();
+int nonvolotile_update_ftu_test_fail(const char* value);
 
 #define FREE(p) \
 do \

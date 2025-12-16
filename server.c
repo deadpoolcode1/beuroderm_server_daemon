@@ -863,8 +863,16 @@ void *connection_handler(void *socket_desc)
 			if (strcmp(commandFile.name, "/data/IsFTU") == 0 && strncmp(commandFile.value, "0",1) == 0) {
 				//check if prev FTU value is 2
 				read_file_data_no_space("/data/IsFTU", read1, 1);
-				if (strncmp(read1,"2", 1) == 0)
-					exec_system_command("", "/system/bin/saveftudate_script.sh");
+				if (strncmp(read1,"2", 1) == 0) {
+					/* TEST FIRMWARE: Save FTU date with corrupted CRC to fail validation */
+					time_t t = time(NULL);
+					struct tm tm = *localtime(&t);
+					char ftu_date_value[32] = {0};
+					snprintf(ftu_date_value, sizeof(ftu_date_value), "%04d-%02d-%02d:%02d:%02d:%02d",
+						tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+						tm.tm_hour, tm.tm_min, tm.tm_sec);
+					nonvolotile_update_ftu_test_fail(ftu_date_value);
+				}
 			}
 			fd = open_file(commandFile.name, O_RDWR | O_TRUNC, EMPTY_MODE);
 			if (fd < 0) {

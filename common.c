@@ -630,7 +630,7 @@ void nonvolotile_update(const char* parameter, const char* value)
 	nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
 	nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
 	nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	buft[0] = '\0'; 
+	buft[0] = '\0';
 	printf ("parameter:%s value:%s\r\n", parameter, value);
 	if (strcmp(parameter,"main_sn") == 0)
 		sprintf(nonvolotile_config.main_sn, "%s\n", value);
@@ -644,7 +644,7 @@ void nonvolotile_update(const char* parameter, const char* value)
 		sprintf(nonvolotile_config.ftu_date, "%s\n", value);
 	else if (strcmp(parameter,"crc") == 0)
 		sprintf(nonvolotile_config.crc, "%s\n", value);
-	else { 
+	else {
 		printf("no such parameter\r\n");
 		return;
 	}
@@ -673,4 +673,108 @@ void nonvolotile_update(const char* parameter, const char* value)
 	exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
 	usleep(USEC_NONVOLOTILE_ACTION);
 	printf("saved data is:\n %s\r\n", buf);
+}
+
+/** @brief Test function: Update FTU date with intentional CRC failure after 3 retries.
+ *  This function simulates NVM write failures for testing purposes.
+ *  After 3 retry attempts, it writes a wrong CRC to intentionally fail validation.
+ *  @param value The FTU date value to write
+ *  @return 0 on successful corruption (for test), -1 if unable to write
+ */
+int nonvolotile_update_ftu_test_fail(const char* value)
+{
+	int retry;
+	char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char tmp[VAR_MAXLEN] = {0};
+	unsigned short correct_crc = 0;
+	unsigned short wrong_crc = 0;
+
+	if (strlen(value) > EMPTY_NONVOLOTILE_MAXLEN) {
+		printf("TEST FAIL MODE: value too long\r\n");
+		return -1;
+	}
+
+	ND_printlog(ND_LOG_INFO, "TEST FAIL MODE: Starting FTU date write with intentional CRC failure\n");
+
+	/* Perform 3 retry attempts before failing */
+	for (retry = 0; retry < FTU_TEST_FAIL_MAX_RETRIES; retry++) {
+		ND_printlog(ND_LOG_INFO, "TEST FAIL MODE: FTU date write attempt %d of %d\n",
+			retry + 1, FTU_TEST_FAIL_MAX_RETRIES);
+
+		/* Clear and read current NVM configuration */
+		nonvolotile_config.main_sn[0] = '\0';
+		nonvolotile_config.main_pn[0] = '\0';
+		nonvolotile_config.som_sn[0] = '\0';
+		nonvolotile_config.cradle_sn[0] = '\0';
+		nonvolotile_config.ftu_date[0] = '\0';
+		nonvolotile_config.crc[0] = '\0';
+		nonvolotile_read();
+		nonvolotile_parse_parameter("main_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("main_pn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("som_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		buft[0] = '\0';
+
+		/* Update ftu_date with the new value */
+		sprintf(nonvolotile_config.ftu_date, "%s\n", value);
+		ND_printlog(ND_LOG_INFO, "TEST FAIL MODE: Writing ftu_date=%s\n", value);
+
+		/* Simulate write attempt (all retries will "fail" in test mode) */
+		usleep(USEC_NONVOLOTILE_ACTION);
+
+		ND_printlog(ND_LOG_ERROR, "TEST FAIL MODE: Simulated write failure on attempt %d\n", retry + 1);
+	}
+
+	/* After 3 retries, write with intentionally wrong CRC to fail validation */
+	ND_printlog(ND_LOG_INFO, "TEST FAIL MODE: All %d retries exhausted, writing with corrupted CRC\n",
+		FTU_TEST_FAIL_MAX_RETRIES);
+
+	/* Build the buffer with updated ftu_date */
+	buf[0] = '\0';
+	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
+	strcat(buf, tmp);
+	sprintf(tmp, "main_pn=%s", nonvolotile_config.main_pn);
+	strcat(buf, tmp);
+	sprintf(tmp, "som_sn=%s", nonvolotile_config.som_sn);
+	strcat(buf, tmp);
+	sprintf(tmp, "cradle_sn=%s", nonvolotile_config.cradle_sn);
+	strcat(buf, tmp);
+	sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+	strcat(buf, tmp);
+
+	/* Calculate correct CRC first */
+	sprintf(buft, "%s", buf);
+	filter_crc_string(buft, FILE_INI, strlen(buft));
+	correct_crc = calc_crc(buft, strlen(buft));
+
+	/* Generate wrong CRC by XORing with a known value to ensure it's different */
+	wrong_crc = correct_crc ^ FTU_TEST_FAIL_CRC_CORRUPT_VALUE;
+
+	/* Ensure wrong_crc is actually different from correct_crc */
+	if (wrong_crc == correct_crc) {
+		wrong_crc = correct_crc + 1;
+	}
+
+	ND_printlog(ND_LOG_INFO, "TEST FAIL MODE: Correct CRC would be: %hu, Writing wrong CRC: %hu\n",
+		correct_crc, wrong_crc);
+
+	/* Write the wrong CRC */
+	sprintf(nonvolotile_config.crc, "%hu\n", wrong_crc);
+	sprintf(tmp, "crc=%s", nonvolotile_config.crc);
+	strcat(buf, tmp);
+	strcat(buf, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
+	/* Write to NVM with corrupted CRC */
+	safe_write_file_stream(NONVOLOTILE_USERDATA_FILE, buf);
+	usleep(USEC_NONVOLOTILE_ACTION);
+	exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
+	usleep(USEC_NONVOLOTILE_ACTION);
+
+	ND_printlog(ND_LOG_INFO, "TEST FAIL MODE: NVM written with corrupted CRC. Validation will now FAIL.\n");
+	printf("TEST FAIL MODE: saved data with wrong CRC is:\n %s\r\n", buf);
+
+	return 0;
 }
