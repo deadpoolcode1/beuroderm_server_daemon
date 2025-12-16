@@ -32,7 +32,7 @@
 #define MAX_FILE_SIZE 10000
 #define CRC_STRING_JSON "\"crc\":\""
 #define CRC_STRING_INI "crc="
-#define HALL_DETECT "/sys/class/switch/hall_detect/state"
+#define HALL_DETECT "/data/testmock"
 #define HALL_DETECTR "/data/gpiohallreflect"
 //i2c bit test address, paths, registers definition
 
