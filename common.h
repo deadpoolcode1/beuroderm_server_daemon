@@ -80,7 +80,6 @@ enum {
 /* FTU Test Fail Mode Constants */
 #define FTU_TEST_FAIL_MAX_RETRIES 3
 #define FTU_TEST_FAIL_CRC_CORRUPT_VALUE 0xDEAD  /* XOR value to corrupt CRC */
-#define FTU_TEST_FAIL_MODE_FILE "/data/ftu_test_fail_mode"  /* If this file exists, test fail mode is enabled */
 
 typedef struct {
 	char main_sn[32];
