@@ -1238,12 +1238,29 @@ uint8_t test_if_use_default_key()
  */
 uint8_t test_serial_number_validity()
 {
+	unsigned short calc_crc, extract_crc;
+
+	ND_printlog(ND_LOG_INFO, "test_serial_number_validity: ENTERING\n");
+
 	if (test_if_use_default_key()) {
 		ND_printlog(ND_LOG_INFO, "config file use_default_key=1, therefore serial number validity test pass\n");
 		return PASSED;
 	}
 
-	return (nonvolotile_calculate_crc() == nonvolotile_extract_crc()) ? PASSED : FAILED;
+	ND_printlog(ND_LOG_INFO, "test_serial_number_validity: use_default_key=0, checking NVM CRC\n");
+
+	calc_crc = nonvolotile_calculate_crc();
+	extract_crc = nonvolotile_extract_crc();
+
+	ND_printlog(ND_LOG_INFO, "test_serial_number_validity: calc_crc=%hu, extract_crc=%hu\n", calc_crc, extract_crc);
+
+	if (calc_crc == extract_crc) {
+		ND_printlog(ND_LOG_INFO, "test_serial_number_validity: CRC MATCH - PASSED\n");
+		return PASSED;
+	} else {
+		ND_printlog(ND_LOG_ERROR, "test_serial_number_validity: CRC MISMATCH - FAILED\n");
+		return FAILED;
+	}
 }
 
 
