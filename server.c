@@ -1299,6 +1299,87 @@ void *connection_handler(void *socket_desc)
 			nvm_write_status = false;
 			latest_bittest.nvm_status = false;
 			try_write_file(LATEST_BIT_STATUS, "0");  //this fails the BIT status
+		} else if ((ptr = strstr(client_message, "write_command:ftu_test_fail")) != NULL) {
+			/* FTU Test Fail: Write FTU date with intentionally wrong CRC
+			   example: write_command:ftu_test_fail
+			   This writes current date as FTU date with corrupted CRC for testing
+			*/
+			char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+			char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+			char tmp[VAR_MAXLEN] = {0};
+			char nvm_command[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+			char nvm_reply[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+			unsigned short correct_crc = 0;
+			unsigned short wrong_crc = 0;
+			int retry;
+
+			ND_printlog(ND_LOG_INFO, "FTU TEST FAIL: Starting FTU date write with wrong CRC\n");
+
+			/* Get current date */
+			time_t t = time(NULL);
+			struct tm tm = *localtime(&t);
+			char ftu_date_value[32] = {0};
+			snprintf(ftu_date_value, sizeof(ftu_date_value), "%04d-%02d-%02d:%02d:%02d:%02d",
+				tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+				tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+			/* Simulate 3 retry attempts */
+			for (retry = 0; retry < FTU_TEST_FAIL_MAX_RETRIES; retry++) {
+				ND_printlog(ND_LOG_INFO, "FTU TEST FAIL: Write attempt %d of %d\n",
+					retry + 1, FTU_TEST_FAIL_MAX_RETRIES);
+				usleep(USEC_NONVOLOTILE_ACTION);
+			}
+
+			/* Read current NVM and update ftu_date */
+			nonvolotile_readall(nvm_reply, EMPTY_NONVOLOTILE_MAXLEN);
+			nonvolotile_parse_parameter_string(nvm_reply, "main_sn", nvm_reply);
+			nonvolotile_parse_parameter_string(nvm_reply, "main_pn", nvm_reply);
+			nonvolotile_parse_parameter_string(nvm_reply, "som_sn", nvm_reply);
+			nonvolotile_parse_parameter_string(nvm_reply, "cradle_sn", nvm_reply);
+			nonvolotile_parse_parameter_string(nvm_reply, "ftu_date", nvm_reply);
+			nonvolotile_parse_parameter_string(nvm_reply, "crc", nvm_reply);
+
+			sprintf(nonvolotile_config.ftu_date, "%s\n", ftu_date_value);
+
+			/* Build NVM data buffer */
+			buf[0] = '\0';
+			sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
+			strcat(buf, tmp);
+			sprintf(tmp, "main_pn=%s", nonvolotile_config.main_pn);
+			strcat(buf, tmp);
+			sprintf(tmp, "som_sn=%s", nonvolotile_config.som_sn);
+			strcat(buf, tmp);
+			sprintf(tmp, "cradle_sn=%s", nonvolotile_config.cradle_sn);
+			strcat(buf, tmp);
+			sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+			strcat(buf, tmp);
+
+			/* Calculate correct CRC then corrupt it */
+			sprintf(buft, "%s", buf);
+			filter_crc_string(buft, FILE_INI, strlen(buft));
+			correct_crc = calc_crc(buft, strlen(buft));
+			wrong_crc = correct_crc ^ FTU_TEST_FAIL_CRC_CORRUPT_VALUE;
+			if (wrong_crc == correct_crc)
+				wrong_crc = correct_crc + 1;
+
+			ND_printlog(ND_LOG_INFO, "FTU TEST FAIL: Correct CRC: %hu, Writing wrong CRC: %hu\n",
+				correct_crc, wrong_crc);
+
+			/* Write wrong CRC */
+			sprintf(nonvolotile_config.crc, "%hu\n", wrong_crc);
+			sprintf(tmp, "crc=%s", nonvolotile_config.crc);
+			strcat(buf, tmp);
+			strcat(buf, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
+			/* Write to NVM */
+			sprintf(nvm_command, "%s%s%s", "echo \"", buf, "\" > /data/boot_args && dd if=/data/boot_args of=/dev/block/mmcblk0 bs=512 seek=1536 count=1");
+			m_exec_system_command2(nvm_command, nvm_reply);
+			usleep(USEC_NONVOLOTILE_ACTION);
+
+			ND_printlog(ND_LOG_INFO, "FTU TEST FAIL: NVM written with wrong CRC. Validation will FAIL.\n");
+
+			if (send(sock, REPLY_ACK, strlen(REPLY_ACK), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "write_command:device_charger")) != NULL) {
 			//example: write_command:device_charger=1
 			if (check_snprintf(snprintf(commandFile.value, sizeof(commandFile.value) / sizeof(char), "%s", strstr(client_message, "=") + 1), sizeof(commandFile.value) / sizeof(char)))
