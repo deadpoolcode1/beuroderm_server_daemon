@@ -76,6 +76,10 @@ enum {
 
 #define NONVOLOTILE_CRC_MAXLEN 10
 
+/* FTU Test Fail Mode Constants */
+#define FTU_TEST_FAIL_MAX_RETRIES 3
+#define FTU_TEST_FAIL_CRC_CORRUPT_VALUE 0xDEAD  /* XOR value to corrupt CRC */
+
 typedef struct {
 	char main_sn[32];
 	char main_pn [32];
