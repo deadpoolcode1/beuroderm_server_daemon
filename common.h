@@ -76,6 +76,8 @@ enum {
 };
 
 #define NONVOLOTILE_CRC_MAXLEN 10
+#define NVM_WRITE_RETRY_MAX 3
+#define NVM_WRITE_STATUS_FILE "/data/nvm_write_status"
 
 typedef struct {
 	char main_sn[32];
@@ -111,6 +113,8 @@ void nonvolotile_update(const char* parameter, const char* value);
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
 unsigned short nonvolotile_calculate_crc();
 unsigned short nonvolotile_extract_crc();
+int nonvolotile_verify_crc();
+int nonvolotile_update_ftu_with_crc_fail(const char* value);
 
 #define FREE(p) \
 do \

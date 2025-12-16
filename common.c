@@ -587,7 +587,7 @@ unsigned short nonvolotile_calculate_crc()
 	nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
 	nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
 	nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
-	buft[0] = '\0'; 
+	buft[0] = '\0';
 
 	buf[0] = '\0';
 	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
@@ -603,8 +603,128 @@ unsigned short nonvolotile_calculate_crc()
 	sprintf(buft, "%s", filter_crc_string(buf, FILE_INI, strlen(buf)));
 	calculated_crc = calc_crc(buft, strlen(buft));
 	ND_printlog(ND_LOG_INFO, "nonvolotile calculated_crc: %hu\r\n", calculated_crc);
-	
+
 	return calculated_crc;
+}
+
+/** @brief verify NVM CRC integrity - compare stored CRC with calculated CRC
+ *  @return 0 if CRC matches (pass), 1 if CRC mismatch (fail)
+ */
+int nonvolotile_verify_crc()
+{
+	unsigned short stored_crc = 0;
+	unsigned short calculated_crc = 0;
+
+	stored_crc = nonvolotile_extract_crc();
+	calculated_crc = nonvolotile_calculate_crc();
+
+	ND_printlog(ND_LOG_INFO, "NVM CRC verification - stored: %hu, calculated: %hu\r\n",
+		stored_crc, calculated_crc);
+
+	if (stored_crc == calculated_crc) {
+		ND_printlog(ND_LOG_INFO, "NVM CRC verification PASSED\r\n");
+		return 0;
+	} else {
+		ND_printlog(ND_LOG_ERROR, "NVM CRC verification FAILED\r\n");
+		return 1;
+	}
+}
+
+/** @brief update FTU date with intentionally wrong CRC to simulate NVM failure
+ *  This function writes the FTU date but uses an incorrect CRC value.
+ *  It retries up to NVM_WRITE_RETRY_MAX times before declaring failure.
+ *  @param value the FTU date value to write
+ *  @return 0 if verification eventually passes, 1 if all retries fail
+ */
+int nonvolotile_update_ftu_with_crc_fail(const char* value)
+{
+	int i = 0;
+	int verify_result = 1;
+	char buf[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char buft[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char tmp[VAR_MAXLEN] = {0};
+	unsigned short correct_crc = 0;
+	unsigned short wrong_crc = 0;
+
+	if (strlen(value) > EMPTY_NONVOLOTILE_MAXLEN) {
+		printf("value too long\r\n");
+		return 1;
+	}
+
+	for (i = 0; i < NVM_WRITE_RETRY_MAX; i++) {
+		ND_printlog(ND_LOG_INFO, "NVM FTU write attempt %d of %d\r\n", i + 1, NVM_WRITE_RETRY_MAX);
+
+		/* Clear and read current NVM data */
+		nonvolotile_config.main_sn[0] = '\0';
+		nonvolotile_config.main_pn[0] = '\0';
+		nonvolotile_config.som_sn[0] = '\0';
+		nonvolotile_config.cradle_sn[0] = '\0';
+		nonvolotile_config.ftu_date[0] = '\0';
+		nonvolotile_config.crc[0] = '\0';
+		nonvolotile_read();
+		nonvolotile_parse_parameter("main_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("main_pn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("som_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("cradle_sn", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("ftu_date", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		nonvolotile_parse_parameter("crc", buft, EMPTY_NONVOLOTILE_MAXLEN);
+		buft[0] = '\0';
+
+		/* Update FTU date */
+		sprintf(nonvolotile_config.ftu_date, "%s\n", value);
+		printf("parameter:ftu_date value:%s (with wrong CRC - attempt %d)\r\n", value, i + 1);
+
+		/* Build the data buffer */
+		buf[0] = '\0';
+		sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
+		strcat(buf, tmp);
+		sprintf(tmp, "main_pn=%s", nonvolotile_config.main_pn);
+		strcat(buf, tmp);
+		sprintf(tmp, "som_sn=%s", nonvolotile_config.som_sn);
+		strcat(buf, tmp);
+		sprintf(tmp, "cradle_sn=%s", nonvolotile_config.cradle_sn);
+		strcat(buf, tmp);
+		sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+		strcat(buf, tmp);
+		sprintf(buft, "%s", buf);
+
+		/* Calculate correct CRC then intentionally use wrong CRC */
+		filter_crc_string(buft, FILE_INI, strlen(buft));
+		correct_crc = calc_crc(buft, strlen(buft));
+		wrong_crc = correct_crc ^ 0xFFFF;  /* Invert all bits to guarantee wrong CRC */
+		sprintf(nonvolotile_config.crc, "%hu\n", wrong_crc);
+		ND_printlog(ND_LOG_INFO, "Writing wrong CRC: %hu (correct would be: %hu)\r\n",
+			wrong_crc, correct_crc);
+
+		/* Add CRC to buffer and write */
+		sprintf(tmp, "crc=%s", nonvolotile_config.crc);
+		strcat(buf, tmp);
+		strcat(buf, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+		safe_write_file_stream(NONVOLOTILE_USERDATA_FILE, buf);
+		usleep(USEC_NONVOLOTILE_ACTION);
+		exec_system_command("", NONVOLOTILE_WRITE_SCRIPT);
+		usleep(USEC_NONVOLOTILE_ACTION);
+
+		printf("saved data is:\n %s\r\n", buf);
+
+		/* Verify CRC - this should FAIL because we wrote wrong CRC */
+		verify_result = nonvolotile_verify_crc();
+
+		if (verify_result == 0) {
+			/* Verification passed (unexpected for this test function) */
+			ND_printlog(ND_LOG_INFO, "NVM write verification passed on attempt %d\r\n", i + 1);
+			return 0;
+		} else {
+			ND_printlog(ND_LOG_ERROR, "NVM write verification failed on attempt %d\r\n", i + 1);
+		}
+	}
+
+	/* All retries exhausted - write failure status */
+	ND_printlog(ND_LOG_ERROR, "NVM FTU write FAILED after %d retries - CRC integrity check failed\r\n",
+		NVM_WRITE_RETRY_MAX);
+	safe_write_file_stream(NVM_WRITE_STATUS_FILE, "failed");
+
+	return 1;
 }
 
 void nonvolotile_update(const char* parameter, const char* value)

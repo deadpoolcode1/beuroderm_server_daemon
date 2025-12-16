@@ -52,8 +52,14 @@ int exec_system_command(const char* parameter, const char* process_to_execute) {
 int main( int argc, char *argv[] )
 {
 	char buf[MAX_CONF_SIZE] = {0};
+	int result = 0;
 	if( argc < 2 ) {
-		printf("Error, please provide an argument, <print> [parameter]/ <delete> / <update> <parameter> <value>\r\n");
+		printf("Error, please provide an argument:\r\n");
+		printf("  <print> [parameter]           - Print NVM data or specific parameter\r\n");
+		printf("  <delete>                      - Delete NVM data (reset to defaults)\r\n");
+		printf("  <update> <parameter> <value>  - Update NVM parameter\r\n");
+		printf("  <update_ftu_fail> <value>     - Update FTU date with wrong CRC (test failure)\r\n");
+		printf("  <verify_crc>                  - Verify NVM CRC integrity\r\n");
 		return 0;
 	}
 	if (strcmp(argv[1],"print") == 0) {
@@ -66,17 +72,43 @@ int main( int argc, char *argv[] )
 		printf("nonvolotile parameter:\n%s\r\n", buf);
 	}
 	else if (strcmp(argv[1],"delete") == 0) {
-		nonvolotile_delete();	
+		nonvolotile_delete();
 	}
 	else if (strcmp(argv[1],"update") == 0) {
 		if( argc != 4 ) {
 			printf("Error, please use as following: <update> <parameter> <value>\r\n");
 			return 0;
 		}
-		nonvolotile_update(argv[2],argv[3]);	
+		nonvolotile_update(argv[2],argv[3]);
 	}
-	else 
-		printf("Error, please provide a valid argument, <print> / <delete> / <update> <parameter> <value>\r\n");
+	else if (strcmp(argv[1],"update_ftu_fail") == 0) {
+		if( argc != 3 ) {
+			printf("Error, please use as following: <update_ftu_fail> <ftu_date_value>\r\n");
+			printf("Example: update_ftu_fail 2024-01-15:10:30:00\r\n");
+			return 0;
+		}
+		printf("Attempting to update FTU date with intentional CRC failure...\r\n");
+		result = nonvolotile_update_ftu_with_crc_fail(argv[2]);
+		if (result == 0) {
+			printf("FTU update completed (CRC verification unexpectedly passed)\r\n");
+		} else {
+			printf("FTU update FAILED after 3 retries - NVM CRC integrity check failed\r\n");
+			printf("Failure status written to %s\r\n", NVM_WRITE_STATUS_FILE);
+		}
+		return result;
+	}
+	else if (strcmp(argv[1],"verify_crc") == 0) {
+		printf("Verifying NVM CRC integrity...\r\n");
+		result = nonvolotile_verify_crc();
+		if (result == 0) {
+			printf("NVM CRC verification PASSED\r\n");
+		} else {
+			printf("NVM CRC verification FAILED - data integrity compromised\r\n");
+		}
+		return result;
+	}
+	else
+		printf("Error, please provide a valid argument, <print> / <delete> / <update> / <update_ftu_fail> / <verify_crc>\r\n");
 
-	return 0;	
+	return 0;
 }
