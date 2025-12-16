@@ -60,6 +60,8 @@ struct bittest_info {
 	uint8_t serial_number_status;
 	uint8_t u14_functionality;
 	uint8_t audio_files_status;
+	uint8_t nvm_crc_integrity_status;
+	uint8_t ftu_date_write_status;
 	int store_rtc_time_data;
 	char timestamp [STD_FILE_LENGTH];
 	uint8_t bit_status;
@@ -67,7 +69,7 @@ struct bittest_info {
 };
 
 alarms_struct alarms;
-struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED, BIT_NOT_PERFORMED};
+struct bittest_info latest_bittest = {PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, PASSED, 0, {0}, BIT_NOT_PERFORMED, BIT_NOT_PERFORMED};
 char * return_current_bit_status(char *update_string, bool print_result);
 
 int exec_system_command(const char * parameter, const char* process_to_execute);
@@ -370,6 +372,10 @@ char * return_current_bit_status(char *update_string, bool print_result)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_boolean(root_object, BIT_AUDIO_FILES, latest_bittest.audio_files_status)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_NVM_CRC_INTEGRITY, latest_bittest.nvm_crc_integrity_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
+	if ((json_object_set_boolean(root_object, BIT_FTU_DATE_WRITE, latest_bittest.ftu_date_write_status)) == JSONFailure)
+		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((json_object_set_string(root_object, BIT_TIMESTAMP, latest_bittest.timestamp)) == JSONFailure)
 		ND_printlog(ND_LOG_ERROR, "error, setting JSON object\n");
 	if ((update_string = json_serialize_to_string_pretty(root_value)) == NULL)
@@ -615,6 +621,13 @@ uint8_t bittest_init_full(uint8_t update_status, uint8_t blocking)
 	value_to_pass = FAILED;
 	value_to_pass = test_serial_number_validity();
 	latest_bittest.serial_number_status = value_to_pass;
+
+	//NVM CRC integrity test
+	value_to_pass = FAILED;
+	value_to_pass = nonvolotile_verify_crc_integrity();
+	latest_bittest.nvm_crc_integrity_status = value_to_pass;
+	if (value_to_pass == FAILED)
+		ND_printlog(ND_LOG_ERROR, "NVM CRC integrity check FAILED\n");
 
 //check with all bit tests, including battery test
 	snprintf(bit_resultstr, sizeof(bit_resultstr) / sizeof(char), "%s", return_current_bit_status(bit_resultstr, true));
@@ -863,8 +876,26 @@ void *connection_handler(void *socket_desc)
 			if (strcmp(commandFile.name, "/data/IsFTU") == 0 && strncmp(commandFile.value, "0",1) == 0) {
 				//check if prev FTU value is 2
 				read_file_data_no_space("/data/IsFTU", read1, 1);
-				if (strncmp(read1,"2", 1) == 0)
-					exec_system_command("", "/system/bin/saveftudate_script.sh");
+				if (strncmp(read1,"2", 1) == 0) {
+					//Generate FTU date and write to NVM with retry and verification
+					char ftu_date_str[32] = {0};
+					time_t ftu_time = time(NULL);
+					struct tm *ftu_tm = localtime(&ftu_time);
+					strftime(ftu_date_str, sizeof(ftu_date_str), "%Y-%m-%d:%H:%M:%S", ftu_tm);
+					ND_printlog(ND_LOG_INFO, "Saving FTU date: %s\n", ftu_date_str);
+
+					//Write FTU date with retry (3 retries) and verification
+					uint8_t ftu_write_result = nonvolotile_update_ftu_date_with_retry(ftu_date_str, FTU_DATE_MAX_RETRY);
+					latest_bittest.ftu_date_write_status = ftu_write_result;
+
+					if (ftu_write_result == FAILED) {
+						ND_printlog(ND_LOG_ERROR, "FTU date write verification FAILED after %d retries\n", FTU_DATE_MAX_RETRY);
+						//Set BIT status to failed for FTU date write
+						try_write_file(LATEST_BIT_STATUS, "0");
+					} else {
+						ND_printlog(ND_LOG_INFO, "FTU date saved and verified successfully\n");
+					}
+				}
 			}
 			fd = open_file(commandFile.name, O_RDWR | O_TRUNC, EMPTY_MODE);
 			if (fd < 0) {

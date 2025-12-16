@@ -111,6 +111,8 @@ void nonvolotile_update(const char* parameter, const char* value);
 void nonvolotile_parse_parameter(const char* parameter, char* reply, size_t buffer_size);
 unsigned short nonvolotile_calculate_crc();
 unsigned short nonvolotile_extract_crc();
+uint8_t nonvolotile_update_ftu_date_with_retry(const char* value, uint8_t max_retries);
+uint8_t nonvolotile_verify_crc_integrity();
 
 #define FREE(p) \
 do \

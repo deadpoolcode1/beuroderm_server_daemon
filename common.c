@@ -674,3 +674,83 @@ void nonvolotile_update(const char* parameter, const char* value)
 	usleep(USEC_NONVOLOTILE_ACTION);
 	printf("saved data is:\n %s\r\n", buf);
 }
+
+/** @brief verify NVM CRC integrity
+ *  @return 1 (PASSED) if CRC matches, 0 (FAILED) otherwise
+ */
+uint8_t nonvolotile_verify_crc_integrity()
+{
+	unsigned short calculated_crc = nonvolotile_calculate_crc();
+	unsigned short stored_crc = nonvolotile_extract_crc();
+
+	ND_printlog(ND_LOG_INFO, "NVM CRC verification: calculated=%hu, stored=%hu\r\n",
+		calculated_crc, stored_crc);
+
+	return (calculated_crc == stored_crc) ? 1 : 0;
+}
+
+/** @brief update FTU date in NVM with retry and verification
+ *  @param value the FTU date value to write
+ *  @param max_retries maximum number of retry attempts (typically 3)
+ *  @return 1 (PASSED) if write and verification succeeded, 0 (FAILED) otherwise
+ */
+uint8_t nonvolotile_update_ftu_date_with_retry(const char* value, uint8_t max_retries)
+{
+	uint8_t retry_count = 0;
+	uint8_t verification_passed = 0;
+	char read_back_value[VAR_MAXLEN] = {0};
+
+	ND_printlog(ND_LOG_INFO, "Attempting to write FTU date: %s (max retries: %d)\r\n",
+		value, max_retries);
+
+	for (retry_count = 0; retry_count < max_retries; retry_count++) {
+		if (retry_count > 0) {
+			ND_printlog(ND_LOG_INFO, "FTU date write retry attempt %d of %d\r\n",
+				retry_count + 1, max_retries);
+			usleep(USEC_NONVOLOTILE_ACTION);
+		}
+
+		/* Write the FTU date */
+		nonvolotile_update("ftu_date", value);
+
+		/* Wait for write to complete */
+		usleep(USEC_NONVOLOTILE_ACTION);
+
+		/* Read back and verify */
+		nonvolotile_read();
+		read_back_value[0] = '\0';
+		nonvolotile_parse_parameter("ftu_date", read_back_value, sizeof(read_back_value));
+
+		/* Remove trailing newline for comparison */
+		size_t len = strlen(read_back_value);
+		if (len > 0 && read_back_value[len - 1] == '\n') {
+			read_back_value[len - 1] = '\0';
+		}
+
+		ND_printlog(ND_LOG_INFO, "FTU date verification: written='%s', read_back='%s'\r\n",
+			value, read_back_value);
+
+		/* Verify the value was written correctly */
+		if (strncmp(value, read_back_value, strlen(value)) == 0) {
+			/* Also verify CRC integrity */
+			if (nonvolotile_verify_crc_integrity()) {
+				verification_passed = 1;
+				ND_printlog(ND_LOG_INFO, "FTU date write verified successfully\r\n");
+				break;
+			} else {
+				ND_printlog(ND_LOG_ERROR, "FTU date CRC verification failed on attempt %d\r\n",
+					retry_count + 1);
+			}
+		} else {
+			ND_printlog(ND_LOG_ERROR, "FTU date value verification failed on attempt %d\r\n",
+				retry_count + 1);
+		}
+	}
+
+	if (!verification_passed) {
+		ND_printlog(ND_LOG_ERROR, "FTU date write failed after %d retries - NVM verification FAILED\r\n",
+			max_retries);
+	}
+
+	return verification_passed;
+}
