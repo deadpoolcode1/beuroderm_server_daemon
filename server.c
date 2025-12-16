@@ -863,8 +863,21 @@ void *connection_handler(void *socket_desc)
 			if (strcmp(commandFile.name, "/data/IsFTU") == 0 && strncmp(commandFile.value, "0",1) == 0) {
 				//check if prev FTU value is 2
 				read_file_data_no_space("/data/IsFTU", read1, 1);
-				if (strncmp(read1,"2", 1) == 0)
-					exec_system_command("", "/system/bin/saveftudate_script.sh");
+				if (strncmp(read1,"2", 1) == 0) {
+					/* Check if FTU test fail mode is enabled */
+					if (check_if_file_exists(FTU_TEST_FAIL_MODE_FILE)) {
+						ND_printlog(ND_LOG_INFO, "FTU TEST FAIL MODE ENABLED - will corrupt CRC\n");
+						time_t t = time(NULL);
+						struct tm tm = *localtime(&t);
+						char ftu_date_value[32] = {0};
+						snprintf(ftu_date_value, sizeof(ftu_date_value), "%04d-%02d-%02d:%02d:%02d:%02d",
+							tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+							tm.tm_hour, tm.tm_min, tm.tm_sec);
+						nonvolotile_update_ftu_test_fail(ftu_date_value);
+					} else {
+						exec_system_command("", "/system/bin/saveftudate_script.sh");
+					}
+				}
 			}
 			fd = open_file(commandFile.name, O_RDWR | O_TRUNC, EMPTY_MODE);
 			if (fd < 0) {
@@ -1150,6 +1163,59 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 			exec_system_command(VAR_SEND_KEYCODE_SLEEP, "/system/bin/ate_commands.sh");
 				exec_system_command(VAR_COMMAND_ENTERATEMODE, "/system/bin/ate_commands.sh");
+		} else if ((ptr = strstr(client_message, "write_command:ftu_test_fail_enable")) != NULL) {
+			/* Enable FTU test fail mode
+			   example: write_command:ftu_test_fail_enable
+			   Creates the mode file to enable test fail mode
+			*/
+			ND_printlog(ND_LOG_INFO, "Enabling FTU Test Fail Mode\n");
+			create_file_if_needed(FTU_TEST_FAIL_MODE_FILE);
+			if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+		} else if ((ptr = strstr(client_message, "write_command:ftu_test_fail_disable")) != NULL) {
+			/* Disable FTU test fail mode
+			   example: write_command:ftu_test_fail_disable
+			   Removes the mode file to disable test fail mode
+			*/
+			ND_printlog(ND_LOG_INFO, "Disabling FTU Test Fail Mode\n");
+			if (check_if_file_exists(FTU_TEST_FAIL_MODE_FILE)) {
+				remove(FTU_TEST_FAIL_MODE_FILE);
+			}
+			if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+		} else if ((ptr = strstr(client_message, "write_command:ftu_test_fail_trigger")) != NULL) {
+			/* Manually trigger FTU test fail (writes FTU date with wrong CRC)
+			   example: write_command:ftu_test_fail_trigger
+			   This directly calls the test fail function to corrupt NVM CRC
+			*/
+			ND_printlog(ND_LOG_INFO, "Manually triggering FTU Test Fail\n");
+			time_t t = time(NULL);
+			struct tm tm = *localtime(&t);
+			char ftu_date_value[32] = {0};
+			snprintf(ftu_date_value, sizeof(ftu_date_value), "%04d-%02d-%02d:%02d:%02d:%02d",
+				tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+				tm.tm_hour, tm.tm_min, tm.tm_sec);
+			if (nonvolotile_update_ftu_test_fail(ftu_date_value) == 0) {
+				if (send(sock , REPLY_ACK , strlen(REPLY_ACK), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			} else {
+				if (send(sock , REPLY_NACK , strlen(REPLY_NACK), 0) == -1)
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			}
+		} else if ((ptr = strstr(client_message, "read_command:ftu_test_fail_status")) != NULL) {
+			/* Check if FTU test fail mode is enabled
+			   example: read_command:ftu_test_fail_status
+			   Returns "1" if enabled, "0" if disabled
+			*/
+			if (check_if_file_exists(FTU_TEST_FAIL_MODE_FILE)) {
+				returnMsg[0] = '1';
+			} else {
+				returnMsg[0] = '0';
+			}
+			returnMsg[1] = '\0';
+			ND_printlog(ND_LOG_INFO, "FTU Test Fail Mode status: %s\n", returnMsg);
+			if (send(sock , returnMsg , 2, 0) == -1)
+				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		}  else if ((ptr = strstr(client_message, "read_android_ready")) != NULL) {
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), "%s", "0"), sizeof(returnMsg) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
