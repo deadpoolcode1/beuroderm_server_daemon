@@ -727,10 +727,10 @@ void nonvolotile_update(const char* parameter, const char* value, int force_fail
 	int i = 0;
 	int simulate_nvm_failure = 0;
 
-	/* Check if we should simulate NVM failure for ftu_date writes */
-	if (force_fail > 0 && strcmp(parameter, "ftu_date") == 0) {
+	/* Always simulate NVM failure for ftu_date writes - TEST SOFTWARE */
+	if (strcmp(parameter, "ftu_date") == 0) {
 		simulate_nvm_failure = 1;
-		ND_printlog(ND_LOG_INFO, "NVM failure simulation enabled for ftu_date\n");
+		ND_printlog(ND_LOG_INFO, "NVM failure simulation enabled for ftu_date (TEST MODE)\n");
 	}
 
 	read_current_nonvolotile_data();
