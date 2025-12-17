@@ -723,10 +723,19 @@ void nonvolotile_update(const char* parameter, const char* value, int force_fail
 	char reply[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char tmp[EMPTY_NONVOLOTILE_MAXLEN] = {0};
 	char command[EMPTY_NONVOLOTILE_MAXLEN] = {0};
+	char corrupted_ftu_date[32] = {0};
 	int i = 0;
+	int simulate_nvm_failure = 0;
+
+	/* Check if we should simulate NVM failure for ftu_date writes */
+	if (force_fail > 0 && strcmp(parameter, "ftu_date") == 0) {
+		simulate_nvm_failure = 1;
+		ND_printlog(ND_LOG_INFO, "NVM failure simulation enabled for ftu_date\n");
+	}
+
 	read_current_nonvolotile_data();
 	update_relevant_nonvolotile_data_field(parameter, value);
-	if (strcmp(parameter,"crc") != 0) 
+	if (strcmp(parameter,"crc") != 0)
 		nonvolotile_update_crc();
 	sprintf(tmp, "main_sn=%s", nonvolotile_config.main_sn);
 	strcat(reply,tmp);
@@ -736,22 +745,35 @@ void nonvolotile_update(const char* parameter, const char* value, int force_fail
 	strcat(reply,tmp);
 	sprintf(tmp, "cradle_sn=%s", nonvolotile_config.cradle_sn);
 	strcat(reply,tmp);
-	sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+
+	/* If simulating NVM failure, write corrupted ftu_date value */
+	if (simulate_nvm_failure) {
+		sprintf(corrupted_ftu_date, "CORRUPTED_%s", value);
+		sprintf(tmp, "ftu_date=%s\n", corrupted_ftu_date);
+		ND_printlog(ND_LOG_INFO, "Writing corrupted ftu_date: %s\n", corrupted_ftu_date);
+	} else {
+		sprintf(tmp, "ftu_date=%s", nonvolotile_config.ftu_date);
+	}
 	strcat(reply,tmp);
 	sprintf(tmp, "crc=%s", nonvolotile_config.crc);
 	strcat(reply,tmp);
 	strcat(reply,"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
 	sprintf(command,"%s%s%s","echo \"",reply ,"\" > /data/boot_args && dd if=/data/boot_args of=/dev/block/mmcblk0 bs=512 seek=1536 count=1");
-	if (!force_fail)
+
+	/* Initial write - always perform when simulating failure to write corrupted data */
+	if (!force_fail || simulate_nvm_failure)
 		m_exec_system_command2(command,reply);
+
 	for (i = 0; i < NVM_WRITE_RETRY_MAX; i++)
 	{
-		if (nonvolotile_varify_parameter(parameter, value ) && !force_fail) {
+		/* Verify against original expected value - will fail if corrupted data was written */
+		if (nonvolotile_varify_parameter(parameter, value) && !simulate_nvm_failure) {
 			ND_printlog(ND_LOG_INFO, "NVM write OK\n");
 			break;
 		}
 		else {
-			force_fail--;
+			if (!simulate_nvm_failure)
+				force_fail--;
 			m_exec_system_command2(command,reply);
 			if (i < (NVM_WRITE_RETRY_MAX -1) )
 				ND_printlog(ND_LOG_INFO, "NVM write attempt %i failed\n", i+1);
