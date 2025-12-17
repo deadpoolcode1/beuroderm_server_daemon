@@ -49,11 +49,13 @@ int exec_system_command(const char* parameter, const char* process_to_execute) {
 
 
 
+#define NVM_FORCE_FAIL_COUNT 3  // Force all 3 retries to fail
+
 int main( int argc, char *argv[] )
 {
 	char buf[MAX_CONF_SIZE] = {0};
 	if( argc < 2 ) {
-		printf("Error, please provide an argument, <print> [parameter]/ <delete> / <update> <parameter> <value> [force fail]\r\n");
+		printf("Error, please provide an argument, <print> [parameter]/ <delete> / <update> <parameter> <value> [force fail] / <test_nvm_ftu_fail>\r\n");
 		return 0;
 	}
 	if (strcmp(argv[1],"print") == 0) {
@@ -66,20 +68,28 @@ int main( int argc, char *argv[] )
 		printf("nonvolotile parameter:\n%s\r\n", buf);
 	}
 	else if (strcmp(argv[1],"delete") == 0) {
-		nonvolotile_delete();	
+		nonvolotile_delete();
 	}
 	else if (strcmp(argv[1],"update") == 0) {
 		if( argc != 4 && argc != 5 ) {
 			printf("Error, please use as following: <update> <parameter> <value>\r\n");
 			return 0;
 		}
-		if (argc == 5)	
+		if (argc == 5)
 			nonvolotile_update(argv[2],argv[3],atoi(argv[4]));
 		else
-			nonvolotile_update(argv[2],argv[3],0);	
+			nonvolotile_update(argv[2],argv[3],0);
 	}
-	else 
-		printf("Error, please provide a valid argument, <print> / <delete> / <update> <parameter> <value>\r\n");
+	else if (strcmp(argv[1],"test_nvm_ftu_fail") == 0) {
+		// Test command: simulate NVM write failure for FTU date
+		// Forces all 3 retries to fail, triggering nvm_write_status error (error code 600)
+		printf("Starting NVM FTU date write failure simulation test...\r\n");
+		printf("Forcing %d consecutive write failures to trigger NVM error\r\n", NVM_FORCE_FAIL_COUNT);
+		nonvolotile_update("ftu_date", "1970-01-01:00:00:00", NVM_FORCE_FAIL_COUNT);
+		printf("Test completed - NVM failure should have been raised\r\n");
+	}
+	else
+		printf("Error, please provide a valid argument, <print> / <delete> / <update> <parameter> <value> / <test_nvm_ftu_fail>\r\n");
 
-	return 0;	
+	return 0;
 }
