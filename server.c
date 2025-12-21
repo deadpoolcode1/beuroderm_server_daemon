@@ -1004,8 +1004,16 @@ void *connection_handler(void *socket_desc)
 			/*action is reading a file
 			example: read_file:/sys/class/gpio/gpio5/value
 			*/
+			int is_hall_detect = 0;
 			if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s",  strstr(client_message, ":") + 1), sizeof(commandFile.name) / sizeof(char)))
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+			// Redirect hall_detect read to testmock for mock testing
+			if (strcmp(commandFile.name, "/sys/class/switch/hall_detect/state") == 0) {
+				if (check_snprintf(snprintf(commandFile.name, sizeof(commandFile.name) / sizeof(char), "%s", HALL_DETECT), sizeof(commandFile.name) / sizeof(char)))
+					ND_printlog(ND_LOG_ERROR, error_message_fw_error);
+				is_hall_detect = 1;
+				ND_printlog(ND_LOG_INFO, "Redirecting hall_detect read to testmock\n");
+			}
 			ND_printlog(ND_LOG_INFO, "file to read:%s\n", commandFile.name);
 			if ((fd = open_file(commandFile.name, O_RDONLY, EMPTY_MODE)) < 0) {
 				if (check_snprintf(snprintf(error_msg, sizeof(error_msg) / sizeof(char), "%s", "error, unable to read the value"), sizeof(error_msg) / sizeof(char)))
@@ -1019,6 +1027,16 @@ void *connection_handler(void *socket_desc)
 			} else {
 
 				read(fd, commandFile.value, sizeof(commandFile.value));
+				// Invert hall sensor value for mock testing (0->1, 1->0)
+				if (is_hall_detect) {
+					if (commandFile.value[0] == '0') {
+						commandFile.value[0] = '1';
+						ND_printlog(ND_LOG_INFO, "hall_detect value inverted: 0->1\n");
+					} else if (commandFile.value[0] == '1') {
+						commandFile.value[0] = '0';
+						ND_printlog(ND_LOG_INFO, "hall_detect value inverted: 1->0\n");
+					}
+				}
 				ND_printlog(ND_LOG_INFO, "value read:%s\n", commandFile.value);
 				safe_close(fd);
 				if (send(sock , commandFile.value , sizeof(commandFile.value), 0) == -1)
@@ -1130,7 +1148,12 @@ void *connection_handler(void *socket_desc)
 				ND_printlog(ND_LOG_ERROR, error_message_fw_error);
 		} else if ((ptr = strstr(client_message, "read_command:hw_info")) != NULL) {
 			//Response: {"hall_status":"0\1","battery_status":"0/1","w_charger_state":"0\1"}
-			read_file_data_no_space("/sys/class/switch/hall_detect/state", read1, size_of_array_read_file);
+			read_file_data_no_space(HALL_DETECT, read1, size_of_array_read_file);
+			// Invert hall sensor value for mock testing (0->1, 1->0)
+			if (read1[0] == '0')
+				read1[0] = '1';
+			else if (read1[0] == '1')
+				read1[0] = '0';
 			read_file_data_no_space("/sys/class/power_supply/max77818-charger/online", read2, size_of_array_read_file);
 			read_file_data_no_space("/sys/devices/soc0/filling_station-pm/wpc_stby/value", read3, size_of_array_read_file);
 			if (check_snprintf(snprintf(returnMsg, sizeof(returnMsg) / sizeof(char), " {\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"} \n", "hall_status", read1
