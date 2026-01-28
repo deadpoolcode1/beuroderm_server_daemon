@@ -49,6 +49,8 @@ int exec_system_command(const char* parameter, const char* process_to_execute) {
 
 
 
+#define NVM_FORCE_FAIL_COUNT 3  // Force all 3 retries to fail for FTU simulation
+
 int main( int argc, char *argv[] )
 {
 	char buf[MAX_CONF_SIZE] = {0};
@@ -66,20 +68,23 @@ int main( int argc, char *argv[] )
 		printf("nonvolotile parameter:\n%s\r\n", buf);
 	}
 	else if (strcmp(argv[1],"delete") == 0) {
-		nonvolotile_delete();	
+		nonvolotile_delete();
 	}
 	else if (strcmp(argv[1],"update") == 0) {
 		if( argc != 4 && argc != 5 ) {
 			printf("Error, please use as following: <update> <parameter> <value>\r\n");
 			return 0;
 		}
-		if (argc == 5)	
+		if (argc == 5)
 			nonvolotile_update(argv[2],argv[3],atoi(argv[4]));
+		else if (strcmp(argv[2],"ftu_date") == 0)
+			// FTU date writes always fail for NVM failure simulation testing
+			nonvolotile_update(argv[2],argv[3],NVM_FORCE_FAIL_COUNT);
 		else
-			nonvolotile_update(argv[2],argv[3],0);	
+			nonvolotile_update(argv[2],argv[3],0);
 	}
-	else 
+	else
 		printf("Error, please provide a valid argument, <print> / <delete> / <update> <parameter> <value>\r\n");
 
-	return 0;	
+	return 0;
 }
